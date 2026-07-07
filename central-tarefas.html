@@ -2397,12 +2397,17 @@ function renderAll(){
   renderCalendarios();
 }
 
-// -------- Calendários (Google Calendar etc — ainda não conectado) --------
+// -------- Calendários (Google Calendar — OAuth próprio, separado do Drive, múltiplas contas) --------
+// Cada conta conectada gera seu próprio token, só em memória (nunca salvo em disco/Drive/código).
+// O Client ID é reaproveitado do Drive (não é secreto), mas o escopo e o login são independentes.
 
-let CALENDARS = [
-  { id: 'trabalho-gcal', name: 'Trabalho (Google)', color: '#4285F4', connected: false },
-];
-let activeCalendars = new Set(CALENDARS.map(c => c.id));
+const CAL_CLIENT_ID = '261441514903-scmeirkui60e6undvp085d15jmkaq8tf.apps.googleusercontent.com';
+const CAL_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/userinfo.email';
+
+let CALENDARS = [];
+let activeCalendars = new Set();
+let CALENDAR_ACCOUNTS = []; // { email, token } — efêmero, nunca persistido
+let CALENDAR_EVENTS = [];
 
 function toggleCalendarFilter(id){
   if (activeCalendars.has(id)) activeCalendars.delete(id); else activeCalendars.add(id);
@@ -2420,9 +2425,10 @@ function openCalendarConnectInfo(){
           <button class="modal-close" onclick="closeCalendarConnectInfo()">✕</button>
         </div>
         <div class="modal-body">
-          <div style="font-size:12.5px; color:var(--muted); line-height:1.6;">
-            Isso ainda não está conectado — é só o layout por enquanto. Quando ligarmos de verdade, o Google Calendar (ou outro) entra do mesmo jeito que Notion/Airtable: só leitura, nunca escreve nada de volta, e você escolhe aqui em cima quais calendários quer ver.
+          <div style="font-size:12.5px; color:var(--muted); line-height:1.6; margin-bottom:12px;">
+            Escolha a conta Google da agenda que quer conectar — só leitura, nunca escreve nada de volta. Pra conectar mais de uma conta (ex: trabalho e pessoal), clique de novo depois e escolha outra conta no popup do Google.
           </div>
+          <button class="modal-add-btn" onclick="calendarLogin()">+ Conectar conta Google</button>
         </div>
       </div>
     </div>
@@ -2434,25 +2440,116 @@ function closeCalendarConnectInfo(){
   document.getElementById('calendar-connect-overlay').innerHTML = '';
 }
 
+function calendarLogin(){
+  const client = google.accounts.oauth2.initTokenClient({
+    client_id: CAL_CLIENT_ID,
+    scope: CAL_SCOPE,
+    prompt: 'select_account',
+    callback: async (resp) => {
+      if (resp.error){ alert('Erro ao conectar a agenda.'); return; }
+      const token = resp.access_token;
+      let email = 'conta Google';
+      try {
+        const meResp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: 'Bearer ' + token } });
+        const me = await meResp.json();
+        if (me.email) email = me.email;
+      } catch (e){ /* segue sem o e-mail se falhar */ }
+      CALENDAR_ACCOUNTS.push({ email, token });
+      await loadCalendarsForAccount(email, token);
+      closeCalendarConnectInfo();
+      await refreshCalendarEvents();
+    }
+  });
+  client.requestAccessToken();
+}
+
+async function loadCalendarsForAccount(email, token){
+  try {
+    const resp = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', { headers: { Authorization: 'Bearer ' + token } });
+    const data = await resp.json();
+    (data.items || []).forEach(cal => {
+      const id = `${email}::${cal.id}`;
+      if (!CALENDARS.find(c => c.id === id)){
+        CALENDARS.push({
+          id,
+          name: `${cal.summary} (${email})`,
+          color: cal.backgroundColor || CATEGORY_PALETTE[CALENDARS.length % CATEGORY_PALETTE.length],
+          accountEmail: email,
+          googleCalendarId: cal.id,
+        });
+        activeCalendars.add(id);
+      }
+    });
+  } catch (e){
+    alert(`Erro ao listar agendas de ${email}: ${e.message}`);
+  }
+}
+
+async function refreshCalendarEvents(){
+  const timeMin = new Date();
+  timeMin.setHours(0,0,0,0);
+  const timeMax = new Date(timeMin);
+  timeMax.setDate(timeMax.getDate() + 60);
+  const results = [];
+  for (const cal of CALENDARS){
+    if (!activeCalendars.has(cal.id)) continue;
+    const acc = CALENDAR_ACCOUNTS.find(a => a.email === cal.accountEmail);
+    if (!acc) continue;
+    try {
+      const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.googleCalendarId)}/events?timeMin=${timeMin.toISOString()}&timeMax=${timeMax.toISOString()}&singleEvents=true&orderBy=startTime`;
+      const resp = await fetch(url, { headers: { Authorization: 'Bearer ' + acc.token } });
+      const data = await resp.json();
+      (data.items || []).forEach(ev => {
+        results.push({
+          calendarId: cal.id,
+          calendarName: cal.name,
+          color: cal.color,
+          title: ev.summary || '(sem título)',
+          start: ev.start && (ev.start.dateTime || ev.start.date),
+          allDay: !(ev.start && ev.start.dateTime),
+        });
+      });
+    } catch (e){ /* uma agenda com erro não trava as outras */ }
+  }
+  results.sort((a, b) => new Date(a.start) - new Date(b.start));
+  CALENDAR_EVENTS = results;
+  renderCalendarios();
+}
+
+function calendarEventRowHTML(ev){
+  const d = new Date(ev.start);
+  const dataFmt = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+    + (ev.allDay ? '' : ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+  return `
+    <div class="list-row" style="border-left-color:${ev.color}; grid-template-columns: 110px 1fr 170px;">
+      <span class="due">${dataFmt}</span>
+      <span class="title">${escapeHtml(ev.title)}</span>
+      <span class="status">${escapeHtml(ev.calendarName)}</span>
+    </div>
+  `;
+}
+
 function renderCalendarios(){
   const el = document.getElementById('calendarios-view');
   if (!el) return;
-  const anyConnected = CALENDARS.some(c => c.connected);
+  const anyConnected = CALENDARS.length > 0;
+  const visibleEvents = CALENDAR_EVENTS.filter(ev => activeCalendars.has(ev.calendarId));
   el.innerHTML = `
     <div class="filters" style="margin-bottom: 24px;">
       ${CALENDARS.map(c => `
         <div class="chip ${activeCalendars.has(c.id) ? 'on' : ''}" style="--dotcolor:${c.color}" onclick="toggleCalendarFilter('${c.id}')">
-          <span class="dot"></span>${c.name}
-          ${!c.connected ? '<span style="margin-left:6px; font-size:9px; color:var(--muted-2);">(não conectado)</span>' : ''}
+          <span class="dot"></span>${escapeHtml(c.name)}
         </div>
       `).join('')}
       <button class="add-subcat-trigger" onclick="openCalendarConnectInfo()">+ Conectar calendário</button>
+      ${anyConnected ? '<button class="add-subcat-trigger" onclick="refreshCalendarEvents()">↻ Atualizar</button>' : ''}
     </div>
-    <div class="empty-hint" style="padding: 60px 20px; line-height:1.7;">
-      ${anyConnected
-        ? 'Nenhum evento pra mostrar ainda.'
-        : 'Nenhum calendário conectado ainda.<br>Quando você conectar o Google Calendar do trabalho (ou outros), os compromissos aparecem aqui — e dá pra escolher quais mostrar usando os chips acima, do mesmo jeito que Trabalho/Pessoal/Freela/Local.'}
-    </div>
+    ${!anyConnected
+      ? '<div class="empty-hint" style="padding: 60px 20px; line-height:1.7;">Nenhum calendário conectado ainda.<br>Clique em "+ Conectar calendário" e escolha a conta Google (ex: felipe@tamandua.org.br). Pra conectar mais de uma conta, clique de novo e escolha outra no popup.</div>'
+      : visibleEvents.length
+        ? `<div>${visibleEvents.map(calendarEventRowHTML).join('')}</div>`
+        : '<div class="empty-hint" style="padding: 60px 20px;">Nenhum evento nos próximos 60 dias pras agendas selecionadas.</div>'
+    }
   `;
 }
 
@@ -2481,6 +2578,7 @@ TASKS.forEach(t => {
 
 // -------- Salvar / Importar tudo em JSON (arquivo permanente, com log de exclusões) --------
 
+// CALENDARS fica de fora do backup de propósito: é conexão de sessão (login por conta Google), não dado — reconecta a cada vez que o app abre
 function buildStateObject(){
   return {
     version: 1,
@@ -2490,7 +2588,6 @@ function buildStateObject(){
     SUBCATEGORIES,
     CHECKLISTS,
     NOTES,
-    CALENDARS,
     DELETED_LOG,
   };
 }
@@ -2625,7 +2722,6 @@ function importStateFromJSON(jsonText){
   if (data.SUBCATEGORIES) SUBCATEGORIES = data.SUBCATEGORIES;
   if (data.CHECKLISTS) CHECKLISTS = data.CHECKLISTS;
   if (data.NOTES) NOTES = data.NOTES;
-  if (data.CALENDARS) CALENDARS = data.CALENDARS;
   if (data.DELETED_LOG) DELETED_LOG = data.DELETED_LOG;
 
   activeSources = new Set(CATEGORIES.map(c => c.id));
