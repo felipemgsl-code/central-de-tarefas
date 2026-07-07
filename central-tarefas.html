@@ -6,6 +6,7 @@
 <title>Central de Tarefas</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root{
     --bg: #14181C;
@@ -1124,6 +1125,17 @@
 </head>
 <body>
 
+<div id="lock-screen" style="position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;">
+  <div style="background:var(--surface);padding:32px;border-radius:16px;border:1px solid var(--line);text-align:center;box-shadow:0 20px 50px rgba(0,0,0,0.5);">
+    <div style="font-family:'Space Grotesk',sans-serif;font-size:20px;margin-bottom:16px;color:var(--text);font-weight:700;">Central de Tarefas</div>
+    <div style="margin-bottom:16px;color:var(--muted);font-size:13px;">Digite sua senha para acessar:</div>
+    <input type="password" id="lock-pwd" maxlength="4" placeholder="••••" style="font-family:'IBM Plex Mono',monospace;font-size:28px;letter-spacing:4px;text-align:center;width:140px;padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--surface-2);color:var(--text);margin-bottom:16px;outline:none;" onkeydown="if(event.key==='Enter') checkLockPwd()" autofocus/>
+    <br>
+    <button onclick="checkLockPwd()" style="font-family:'Space Grotesk',sans-serif;font-weight:600;background:var(--freela);color:#fff;border:none;border-radius:8px;width:140px;padding:10px;font-size:14px;cursor:pointer;">Entrar</button>
+    <div id="lock-err" style="display:none;color:var(--danger);margin-top:16px;font-size:12.5px;font-weight:600;font-family:'IBM Plex Mono',monospace;">Senha incorreta!</div>
+  </div>
+</div>
+
 <div class="wrap">
 
   <header>
@@ -1137,6 +1149,12 @@
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
         </button>
         <input type="file" id="import-file-input" accept="application/json" style="display:none;" onchange="handleImportFileInput(event)">
+        <button class="backup-btn" id="drive-btn" onclick="driveAction()" title="Logar sua conta Google">
+          <svg viewBox="0 0 24 24" width="14" height="14"><path d="M4.5 20L1 14l5.5-9.5h11L23 14l-3.5 6H4.5z" fill="#4285F4" opacity=".3"/><path d="M8.5 4.5L3 14h6l5.5-9.5H8.5z" fill="#0066DA"/><path d="M15.5 4.5H9L14.5 14H21L15.5 4.5z" fill="#00AC47"/><path d="M3 14l3.5 6h11l3.5-6H3z" fill="#FFBA00"/></svg>
+        </button>
+        <button class="backup-btn" id="drive-save-btn" onclick="gdToken?driveSalvar():driveAction()" title="Salvar no Drive" style="color:#4CAF7D;">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+        </button>
       </div>
     </div>
     <div class="view-toggle">
@@ -1178,12 +1196,30 @@
   <main id="notas-view" style="display:none;"></main>
   <main id="calendarios-view" style="display:none;"></main>
   <div id="calendar-connect-overlay" style="display:none;"></div>
+  <div id="drive-overlay" style="display:none;"></div>
 
   <footer>gerado a partir de tasks.json — última atualização simulada</footer>
 
 </div>
 
 <script>
+// -------- Tela de bloqueio (obfuscação simples, não é criptografia real) --------
+function checkLockPwd() {
+  const pwd = document.getElementById('lock-pwd').value;
+  let senhaMisturada = "";
+  if (pwd.length === 4) {
+    senhaMisturada = "Lfh#" + pwd[0] + "ks" + pwd[1] + "jh" + pwd[2] + "#DF" + pwd[3];
+  }
+  const expected = "Lfh#9ks0jh9#DF0";
+  if (senhaMisturada === expected) {
+    document.getElementById('lock-screen').style.display = 'none';
+  } else {
+    document.getElementById('lock-err').style.display = 'block';
+    document.getElementById('lock-pwd').value = '';
+    document.getElementById('lock-pwd').focus();
+  }
+}
+
 // -------- Tarefas (vazio — pronto pra conectar as fontes reais ou criar as suas) --------
 const TASKS = [];
 
@@ -2445,8 +2481,8 @@ TASKS.forEach(t => {
 
 // -------- Salvar / Importar tudo em JSON (arquivo permanente, com log de exclusões) --------
 
-function exportStateToJSON(){
-  const state = {
+function buildStateObject(){
+  return {
     version: 1,
     exportedAt: new Date().toISOString(),
     CATEGORIES,
@@ -2457,7 +2493,10 @@ function exportStateToJSON(){
     CALENDARS,
     DELETED_LOG,
   };
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+}
+
+function exportStateToJSON(){
+  const blob = new Blob([JSON.stringify(buildStateObject(), null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -2466,6 +2505,104 @@ function exportStateToJSON(){
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+// ── GOOGLE DRIVE (mesmo padrão do app de Finanças — login, escopo drive.file, token só em memória) ──
+const GD_CLIENT_ID = '261441514903-scmeirkui60e6undvp085d15jmkaq8tf.apps.googleusercontent.com';
+const GD_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const GD_FILE = 'central_tarefas_dados.json';
+let gdToken = null;
+
+function driveAction(){
+  if (gdToken) showDriveMenu();
+  else driveLogin();
+}
+
+function updateDriveBtnUI(connected){
+  const btn = document.getElementById('drive-btn');
+  if (btn) btn.style.borderColor = connected ? 'var(--freela)' : '';
+}
+
+function driveLogin(){
+  const client = google.accounts.oauth2.initTokenClient({
+    client_id: GD_CLIENT_ID,
+    scope: GD_SCOPE,
+    callback: (resp) => {
+      if (resp.error){ alert('Erro ao logar no Google Drive.'); return; }
+      gdToken = resp.access_token;
+      updateDriveBtnUI(true);
+      driveCarregar();
+    }
+  });
+  client.requestAccessToken();
+}
+
+function closeDriveMenu(){
+  document.getElementById('drive-overlay').style.display = 'none';
+  document.getElementById('drive-overlay').innerHTML = '';
+}
+
+function showDriveMenu(){
+  const el = document.getElementById('drive-overlay');
+  el.style.display = 'flex';
+  el.innerHTML = `
+    <div class="modal-backdrop" onclick="closeDriveMenu()">
+      <div class="modal-panel" onclick="event.stopPropagation()">
+        <div class="modal-head">
+          <h3>Google Drive</h3>
+          <button class="modal-close" onclick="closeDriveMenu()">✕</button>
+        </div>
+        <div class="modal-body">
+          <div style="font-size:12.5px; color:var(--muted); margin-bottom:10px;">Conectado. Arquivo: <span style="color:var(--text);">${GD_FILE}</span></div>
+          <button class="modal-add-btn" onclick="driveCarregar()">☁ Carregar do Drive</button>
+          <button class="modal-add-btn" onclick="driveSalvar()">💾 Salvar no Drive</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function driveSalvar(silent){
+  if (!gdToken){ alert('Conecte o Google Drive primeiro.'); return; }
+  try {
+    const json = JSON.stringify(buildStateObject(), null, 2);
+    const search = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='${GD_FILE}'+and+trashed=false`, { headers: { Authorization: 'Bearer ' + gdToken } });
+    const found = await search.json();
+    if (found.files && found.files[0]){
+      const fileId = found.files[0].id;
+      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+        method: 'PATCH', headers: { Authorization: 'Bearer ' + gdToken, 'Content-Type': 'application/json' }, body: json
+      });
+    } else {
+      const meta = await fetch('https://www.googleapis.com/drive/v3/files', {
+        method: 'POST', headers: { Authorization: 'Bearer ' + gdToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: GD_FILE })
+      });
+      const data = await meta.json();
+      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${data.id}?uploadType=media`, {
+        method: 'PATCH', headers: { Authorization: 'Bearer ' + gdToken, 'Content-Type': 'application/json' }, body: json
+      });
+    }
+    if (!silent) alert('Salvo no Google Drive!');
+  } catch (e){
+    alert('Erro ao salvar no Drive: ' + e.message);
+  }
+}
+
+async function driveCarregar(){
+  if (!gdToken){ alert('Conecte o Google Drive primeiro.'); return; }
+  try {
+    const search = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='${GD_FILE}'+and+trashed=false`, { headers: { Authorization: 'Bearer ' + gdToken } });
+    const found = await search.json();
+    if (!found.files || !found.files[0]){ alert('Nenhum dado salvo no Drive ainda.'); return; }
+    const fileId = found.files[0].id;
+    const resp = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, { headers: { Authorization: 'Bearer ' + gdToken } });
+    const text = await resp.text();
+    importStateFromJSON(text);
+    alert('Dados carregados do Google Drive!');
+  } catch (e){
+    alert('Erro ao carregar do Drive: ' + e.message);
+  }
 }
 
 function recomputeCounters(){
