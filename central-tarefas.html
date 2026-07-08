@@ -196,6 +196,36 @@
 
   .chip.archived-toggle{ border-style: dashed; margin-left: 4px; }
 
+  /* ---------- Busca por título ---------- */
+  .search-box{ position: relative; flex: 1; min-width: 200px; max-width: 340px; }
+  .search-box input[type="text"]{
+    width: 100%;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    color: var(--text);
+    border-radius: 20px;
+    padding: 8px 30px 8px 14px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  }
+  .search-box input[type="text"]::placeholder{ color: var(--muted-2); }
+  .search-box input[type="text"]:focus{ outline: none; border-color: var(--muted-2); }
+  .search-box button{
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: var(--muted-2);
+    cursor: pointer;
+    font-size: 11px;
+    padding: 4px;
+    line-height: 1;
+  }
+  .search-box button:hover{ color: var(--text); }
+
   /* ---------- Source tag on cards ---------- */
   .tag{
     display:inline-flex;
@@ -1243,6 +1273,13 @@
 
   <div class="filters" id="category-filters-row"></div>
 
+  <div class="filters" id="search-row">
+    <div class="search-box">
+      <input type="text" id="task-search-input" placeholder="Buscar por título..." oninput="setSearchQuery(this.value)">
+      <button id="search-clear-btn" onclick="clearSearchQuery()" style="display:none;" title="Limpar busca">✕</button>
+    </div>
+  </div>
+
   <div class="subcat-row" id="subcat-row"></div>
   <div class="subcat-row" id="api-conn-row"></div>
 
@@ -1693,8 +1730,29 @@ function requestDeleteLocalTask(id){
   renderAll();
 }
 
+let searchQuery = ''; // já normalizado (sem acento, minúsculo) — sessão, não persiste
+
+function normalizeSearch(s){
+  return (s || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function setSearchQuery(raw){
+  searchQuery = normalizeSearch(raw);
+  const btn = document.getElementById('search-clear-btn');
+  if (btn) btn.style.display = raw ? 'block' : 'none';
+  renderAll();
+}
+
+function clearSearchQuery(){
+  const input = document.getElementById('task-search-input');
+  if (input) input.value = '';
+  setSearchQuery('');
+  if (input) input.focus();
+}
+
 function visibleTasks(){
   return TASKS.filter(t => {
+    if (searchQuery && !normalizeSearch(t.title).includes(searchQuery)) return false;
     if (showArchivedLocal) return !!t.archived;
     if (t.archived) return false;
     if (!activeSources.has(t.source)) return false;
@@ -3064,6 +3122,7 @@ document.querySelectorAll('.view-toggle button').forEach(btn => {
     });
     const showTaskUI = TASK_VIEWS.includes(currentView);
     document.querySelector('.filters').style.display = showTaskUI ? 'flex' : 'none';
+    document.getElementById('search-row').style.display = showTaskUI ? 'flex' : 'none';
     document.getElementById('subcat-row').style.display = showTaskUI ? 'flex' : 'none';
     document.getElementById('api-conn-row').style.display = (showTaskUI && API_CONNECTIONS.length) ? 'flex' : 'none';
     document.getElementById('drag-hint').style.display = showTaskUI ? 'block' : 'none';
