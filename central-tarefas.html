@@ -3209,6 +3209,7 @@ let API_CONNECTIONS = []; // [{ id, type:'airtable'|'notion', label, source, ...
 let AIRTABLE_SCHEMA_CACHE = null; // resultado da última busca de tabelas/campos pro formulário em andamento — só sessão, não persiste
 let NOTION_SCHEMA_CACHE = null; // idem, pro formulário de conexão do Notion
 let activeApiConnections = new Set(); // filtro de sessão (como activeSources/activeSubcats), não persiste
+let EDITING_CONN_ID = null; // id da conexão sendo editada (reusa token/config salvos em vez de pedir tudo de novo) — só sessão
 
 function toggleApiConnFilter(id){
   if (activeApiConnections.has(id)) activeApiConnections.delete(id); else activeApiConnections.add(id);
@@ -3242,6 +3243,53 @@ function closeApisConnect(){
   document.getElementById('apis-overlay').innerHTML = '';
   AIRTABLE_SCHEMA_CACHE = null;
   NOTION_SCHEMA_CACHE = null;
+  EDITING_CONN_ID = null;
+}
+
+async function editApiConnection(id){
+  const conn = API_CONNECTIONS.find(c => c.id === id);
+  if (!conn) return;
+  EDITING_CONN_ID = id;
+  if (conn.type === 'airtable') await airtableFetchSchemaForEdit(conn);
+  if (conn.type === 'notion') await notionFetchSchemaForEdit(conn);
+}
+
+async function airtableFetchSchemaForEdit(conn){
+  try {
+    const resp = await fetch(`https://api.airtable.com/v0/meta/bases/${conn.baseId}/tables`, { headers: { Authorization: 'Bearer ' + conn.token } });
+    if (!resp.ok){
+      const err = await resp.json().catch(() => ({}));
+      alert('Erro ao buscar tabelas: ' + (err.error?.message || resp.status));
+      return;
+    }
+    const data = await resp.json();
+    AIRTABLE_SCHEMA_CACHE = { token: conn.token, baseId: conn.baseId, tables: data.tables || [] };
+    renderApisModal('airtable-mapping');
+  } catch (e){
+    alert('Erro ao buscar tabelas: ' + e.message);
+  }
+}
+
+async function notionFetchSchemaForEdit(conn){
+  try {
+    const resp = await fetch(`${conn.workerUrl}/v1/databases/${conn.databaseId}`, {
+      headers: { Authorization: 'Bearer ' + conn.token, 'Notion-Version': NOTION_VERSION },
+    });
+    if (!resp.ok){
+      const err = await resp.json().catch(() => ({}));
+      alert('Erro ao buscar a base: ' + (err.message || resp.status));
+      return;
+    }
+    const data = await resp.json();
+    NOTION_SCHEMA_CACHE = {
+      workerUrl: conn.workerUrl, token: conn.token, databaseId: conn.databaseId,
+      databaseName: (data.title || []).map(t => t.plain_text).join('') || conn.databaseName,
+      properties: data.properties || {},
+    };
+    renderApisModal('notion-mapping');
+  } catch (e){
+    alert('Erro ao buscar a base: ' + e.message);
+  }
 }
 
 function guessStatusBucket(name){
@@ -3293,14 +3341,16 @@ function renderApisModal(step){
 
   if (step === 'airtable-mapping' && AIRTABLE_SCHEMA_CACHE){
     const tables = AIRTABLE_SCHEMA_CACHE.tables;
-    const selectedTableId = document.getElementById('at-table-select')?.value || (tables[0] && tables[0].id);
+    const editingConn = EDITING_CONN_ID ? API_CONNECTIONS.find(c => c.id === EDITING_CONN_ID && c.type === 'airtable') : null;
+    const selectedTableId = document.getElementById('at-table-select')?.value || editingConn?.tableId || (tables[0] && tables[0].id);
     const table = tables.find(t => t.id === selectedTableId) || tables[0];
     const fields = table ? table.fields : [];
-    const selectedStatusId = document.getElementById('at-status-select')?.value;
+    const editingStatusFieldId = editingConn?.statusField ? (fields.find(f => f.name === editingConn.statusField)?.id || '') : '';
+    const selectedStatusId = document.getElementById('at-status-select')?.value ?? editingStatusFieldId;
     const statusField = fields.find(f => f.id === selectedStatusId) || null;
     const statusChoices = (statusField && statusField.options) ? statusField.options.choices : [];
-    const selectedFilterField = document.getElementById('at-filter-field-select')?.value || '';
-    const filterValue = document.getElementById('at-filter-value')?.value || '';
+    const selectedFilterField = document.getElementById('at-filter-field-select')?.value ?? (editingConn?.filterField || '');
+    const filterValue = document.getElementById('at-filter-value')?.value ?? (editingConn?.filterValue || '');
 
     el.innerHTML = `
       <div class="modal-backdrop" onclick="closeApisConnect()">
@@ -3311,10 +3361,10 @@ function renderApisModal(step){
           </div>
           <div class="modal-body">
             <div style="font-size:11px; color:var(--muted-2); text-transform:uppercase; letter-spacing:.04em;">Nome dessa conexão</div>
-            <input type="text" id="at-label" placeholder="ex: Trabalho, Cliente X" value="${escapeHtml(table ? table.name : '')}">
+            <input type="text" id="at-label" placeholder="ex: Trabalho, Cliente X" value="${escapeHtml(editingConn?.label ?? (table ? table.name : ''))}">
             <div style="font-size:11px; color:var(--muted-2); text-transform:uppercase; letter-spacing:.04em; margin-top:8px;">Categoria das tarefas</div>
             <select id="at-source-select">
-              ${CATEGORIES.map(c => `<option value="${c.id}" ${c.id === 'trabalho' ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}
+              ${CATEGORIES.map(c => `<option value="${c.id}" ${c.id === (editingConn?.source || 'trabalho') ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}
             </select>
             <div style="font-size:11px; color:var(--muted-2); text-transform:uppercase; letter-spacing:.04em; margin-top:8px;">Tabela</div>
             <select id="at-table-select" onchange="renderApisModal('airtable-mapping')">
@@ -3322,7 +3372,7 @@ function renderApisModal(step){
             </select>
             <div style="font-size:11px; color:var(--muted-2); text-transform:uppercase; letter-spacing:.04em; margin-top:8px;">Campo do título</div>
             <select id="at-title-select">
-              ${fields.map(f => `<option value="${escapeHtml(f.name)}">${escapeHtml(f.name)}</option>`).join('')}
+              ${fields.map(f => `<option value="${escapeHtml(f.name)}" ${editingConn?.titleField === f.name ? 'selected' : ''}>${escapeHtml(f.name)}</option>`).join('')}
             </select>
 
             <div style="font-size:11px; color:var(--muted-2); text-transform:uppercase; letter-spacing:.04em; margin-top:8px;">Só puxar tarefas de (opcional)</div>
@@ -3344,27 +3394,32 @@ function renderApisModal(step){
                 <span style="font-size:9.5px; color:var(--muted-2); text-transform:uppercase;">Kanban</span>
                 <span style="font-size:9.5px; color:var(--muted-2); text-transform:uppercase;">Subcategoria</span>
               </div>
-              ${statusChoices.map(c => `
+              ${statusChoices.map(c => {
+                const savedMap = editingConn?.statusMap?.[c.name];
+                const defaultBucket = savedMap?.bucket ?? guessStatusBucket(c.name);
+                const defaultSubcat = savedMap?.subcat ?? '';
+                return `
                 <div style="display:grid; grid-template-columns: 1fr 118px 118px; gap:6px; align-items:center; margin-bottom:4px;">
                   <span style="font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(c.name)}</span>
                   <select id="at-statusmap-${escapeHtml(c.id)}" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; background:var(--surface); border:1px solid var(--line); color:var(--text); border-radius:4px; padding:4px 4px;">
-                    <option value="todo" ${guessStatusBucket(c.name) === 'todo' ? 'selected' : ''}>A Fazer</option>
-                    <option value="doing" ${guessStatusBucket(c.name) === 'doing' ? 'selected' : ''}>Fazendo</option>
-                    <option value="waiting" ${guessStatusBucket(c.name) === 'waiting' ? 'selected' : ''}>Esp. Retorno</option>
-                    <option value="archived" ${guessStatusBucket(c.name) === 'archived' ? 'selected' : ''}>Já arquivada</option>
-                    <option value="skip" ${guessStatusBucket(c.name) === 'skip' ? 'selected' : ''}>Não importar</option>
+                    <option value="todo" ${defaultBucket === 'todo' ? 'selected' : ''}>A Fazer</option>
+                    <option value="doing" ${defaultBucket === 'doing' ? 'selected' : ''}>Fazendo</option>
+                    <option value="waiting" ${defaultBucket === 'waiting' ? 'selected' : ''}>Esp. Retorno</option>
+                    <option value="archived" ${defaultBucket === 'archived' ? 'selected' : ''}>Já arquivada</option>
+                    <option value="skip" ${defaultBucket === 'skip' ? 'selected' : ''}>Não importar</option>
                   </select>
                   <select id="at-statussubcat-${escapeHtml(c.id)}" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; background:var(--surface); border:1px solid var(--line); color:var(--text); border-radius:4px; padding:4px 4px;">
                     <option value="">— nenhuma —</option>
-                    ${SUBCATEGORIES.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}
+                    ${SUBCATEGORIES.map(s => `<option value="${s.id}" ${defaultSubcat === s.id ? 'selected' : ''}>${escapeHtml(s.name)}</option>`).join('')}
                   </select>
                 </div>
-              `).join('')}
+              `;
+              }).join('')}
             ` : ''}
             <div style="font-size:11px; color:var(--muted-2); text-transform:uppercase; letter-spacing:.04em; margin-top:8px;">Campo de data</div>
             <select id="at-date-select">
               <option value="">(nenhum)</option>
-              ${fields.map(f => `<option value="${escapeHtml(f.name)}" ${/data|prazo|due|date/i.test(f.name) ? 'selected' : ''}>${escapeHtml(f.name)}</option>`).join('')}
+              ${fields.map(f => `<option value="${escapeHtml(f.name)}" ${editingConn ? (editingConn.dateField === f.name ? 'selected' : '') : (/data|prazo|due|date/i.test(f.name) ? 'selected' : '')}>${escapeHtml(f.name)}</option>`).join('')}
             </select>
             <div style="font-size:11px; color:var(--muted-2); line-height:1.5; margin-top:8px;">Só esses campos escolhidos são buscados na API — o resto da tabela (anexos, observações, etc.) fica de fora.</div>
             <button class="modal-add-btn" style="margin-top:12px; width:100%; justify-content:center;" onclick="airtableSaveConnectionAndSync()">Conectar e importar</button>
@@ -3401,11 +3456,12 @@ function renderApisModal(step){
 
   if (step === 'notion-mapping' && NOTION_SCHEMA_CACHE){
     const cache = NOTION_SCHEMA_CACHE;
+    const editingConn = EDITING_CONN_ID ? API_CONNECTIONS.find(c => c.id === EDITING_CONN_ID && c.type === 'notion') : null;
     const props = cache.properties;
     const propNames = Object.keys(props);
     const titleProp = propNames.find(n => props[n].type === 'title') || null;
     const dateProps = propNames.filter(n => props[n].type === 'date');
-    const selectedDateProp = document.getElementById('nt-date-select')?.value || dateProps[0] || '';
+    const selectedDateProp = document.getElementById('nt-date-select')?.value ?? (editingConn?.dateProp || dateProps[0] || '');
 
     el.innerHTML = `
       <div class="modal-backdrop" onclick="closeApisConnect()">
@@ -3416,10 +3472,10 @@ function renderApisModal(step){
           </div>
           <div class="modal-body">
             <div style="font-size:11px; color:var(--muted-2); text-transform:uppercase; letter-spacing:.04em;">Nome dessa conexão</div>
-            <input type="text" id="nt-label" placeholder="ex: Base Notion" value="${escapeHtml(cache.databaseName || '')}">
+            <input type="text" id="nt-label" placeholder="ex: Base Notion" value="${escapeHtml(editingConn?.label ?? (cache.databaseName || ''))}">
             <div style="font-size:11px; color:var(--muted-2); text-transform:uppercase; letter-spacing:.04em; margin-top:8px;">Categoria das tarefas</div>
             <select id="nt-source-select">
-              ${CATEGORIES.map(c => `<option value="${c.id}" ${c.id === 'trabalho' ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}
+              ${CATEGORIES.map(c => `<option value="${c.id}" ${c.id === (editingConn?.source || 'trabalho') ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}
             </select>
             <div style="font-size:11px; color:var(--muted-2); text-transform:uppercase; letter-spacing:.04em; margin-top:8px;">Campo do título</div>
             <select disabled style="opacity:.6;">
@@ -3477,6 +3533,7 @@ function renderApisModal(step){
           ${API_CONNECTIONS.length ? API_CONNECTIONS.map(c => `
             <div class="subcat-edit-row" style="justify-content:space-between;">
               <span style="flex:1; font-size:12.5px; color:var(--text);">${escapeHtml(c.label)} <span style="color:var(--muted-2);">(${escapeHtml(categoryById(c.source).name)})</span></span>
+              <button class="icon-btn" onclick="editApiConnection('${c.id}')" title="Editar">✎</button>
               <button class="icon-btn" onclick="syncApiConnection('${c.id}')" title="Sincronizar">↻</button>
               <button class="icon-btn icon-btn-danger" onclick="removeApiConnection('${c.id}')" title="Remover">✕</button>
             </div>
@@ -3515,7 +3572,7 @@ function airtableSaveConnectionAndSync(){
   }
 
   const conn = {
-    id: `at-${cache.baseId}-${tableId}`,
+    id: EDITING_CONN_ID || `at-${cache.baseId}-${tableId}`,
     type: 'airtable',
     label,
     source,
@@ -3534,6 +3591,7 @@ function airtableSaveConnectionAndSync(){
   API_CONNECTIONS.push(conn);
   activeApiConnections.add(conn.id);
   AIRTABLE_SCHEMA_CACHE = null;
+  EDITING_CONN_ID = null;
   renderApisModal('list');
   renderApiConnRow();
   syncApiConnection(conn.id);
@@ -3610,7 +3668,7 @@ function notionSaveConnectionAndSync(){
   if (!titleProp || !dateProp){ alert('Essa base precisa ter uma propriedade de título e uma de data.'); return; }
 
   const conn = {
-    id: `nt-${cache.databaseId}`,
+    id: EDITING_CONN_ID || `nt-${cache.databaseId}`,
     type: 'notion',
     label,
     source,
@@ -3625,6 +3683,7 @@ function notionSaveConnectionAndSync(){
   API_CONNECTIONS.push(conn);
   activeApiConnections.add(conn.id);
   NOTION_SCHEMA_CACHE = null;
+  EDITING_CONN_ID = null;
   renderApisModal('list');
   renderApiConnRow();
   syncApiConnection(conn.id);
