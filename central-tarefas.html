@@ -52,6 +52,8 @@
     padding: 32px 24px 80px;
   }
 
+  body.expanded-layout .wrap{ max-width: calc(100vw - 40px); }
+
   /* ---------- Header / hero gradient panel ---------- */
   header{
     display:flex;
@@ -360,6 +362,69 @@
   .modal-close:hover{ color: var(--text); border-color: var(--muted-2); }
   .modal-body{ padding: 14px 18px 18px; display:flex; flex-direction: column; gap: 8px; }
 
+  .backup-btn.active{ background: rgba(255,255,255,0.35); border-color: rgba(255,255,255,0.6); }
+
+  /* ---------- Visão simplificada (pills) ---------- */
+  .simple-pill{
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 30px;
+    border-radius: 15px;
+    cursor: grab;
+    margin-bottom: 6px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.22);
+    transition: transform .12s ease;
+  }
+  .simple-pill:active{ cursor: grabbing; }
+  .simple-pill:hover{ transform: translateX(2px); }
+  .simple-pill-title-wrap{
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    white-space: nowrap;
+    padding: 0 10px;
+    -webkit-mask-image: linear-gradient(to right, black 78%, transparent 100%);
+    mask-image: linear-gradient(to right, black 78%, transparent 100%);
+  }
+  .simple-pill-title-wrap::-webkit-scrollbar{ display: none; }
+  .simple-pill-title{
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 11.5px;
+    color: #fff;
+  }
+  .simple-pill-date{
+    flex-shrink: 0;
+    height: 100%;
+    min-width: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+    border-radius: 0 15px 15px 0;
+  }
+  .simple-pill-caret{
+    flex-shrink: 0;
+    width: 14px;
+    text-align: center;
+    font-size: 8px;
+    color: rgba(255,255,255,0.75);
+  }
+  .simple-pill-expanded{ margin: -2px 0 8px; }
+  .simple-pill-expanded .task{ margin-bottom: 0; cursor: default; }
+
   .modal-body > input[type="text"],
   .modal-body > select{
     font-family: 'IBM Plex Mono', monospace;
@@ -563,6 +628,8 @@
     gap: 18px;
   }
 
+  .column{ min-width: 0; }
+
   .column h2{
     font-family: 'Space Grotesk', sans-serif;
     font-size: 12px;
@@ -601,7 +668,10 @@
     border-radius: 8px;
     padding: 12px;
     min-height: 160px;
+    min-width: 0;
   }
+
+  body.expanded-layout .week{ min-height: calc(100vh - 300px); }
 
   .day.today{
     border-color: var(--muted-2);
@@ -702,6 +772,9 @@
     grid-auto-rows: minmax(96px, auto);
     gap: 8px;
   }
+
+  body.expanded-layout .month-grid{ height: calc(100vh - 340px); grid-auto-rows: minmax(90px, 1fr); }
+  body.expanded-layout .cell{ overflow-y: auto; }
 
   .cell{
     background: var(--surface);
@@ -1254,6 +1327,12 @@
         </button>
         <button class="backup-btn" id="apis-btn" onclick="openApisConnect()" title="Conectar APIs" style="color:#FCB400;">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="9" x2="9" y2="21"></line></svg>
+        </button>
+        <button class="backup-btn" id="simplified-btn" onclick="toggleSimplifiedMode()" title="Visão simplificada" style="color:#EC4899;">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="4" rx="2"></rect><rect x="3" y="10.5" width="18" height="4" rx="2"></rect><rect x="3" y="16" width="18" height="4" rx="2"></rect></svg>
+        </button>
+        <button class="backup-btn" id="expand-btn" onclick="toggleExpandedLayout()" title="Expandir layout (Semana / Mês)" style="color:#4FA8E8;">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
         </button>
       </div>
     </div>
@@ -2271,9 +2350,10 @@ function renderKanban(){
   el.innerHTML = `<div class="kanban">
     ${STATUS_ORDER.map(status => {
       const items = visible.filter(t => t.status === status);
-      const cards = items.map(t => taskCardHTML(t, {
-        dragCtx: id => `dropOnCardKanban(event, ${id}, '${status}')`
-      })).join('');
+      const cardFn = t => simplifiedMode
+        ? simplePillHTML(t, { dragCtx: id => `dropOnCardKanban(event, ${id}, '${status}')` })
+        : taskCardHTML(t, { dragCtx: id => `dropOnCardKanban(event, ${id}, '${status}')` });
+      const cards = items.map(cardFn).join('');
       return `
         <div class="column">
           <h2>${STATUS_LABEL[status]} <span class="count">${items.length}</span></h2>
@@ -2293,10 +2373,10 @@ function renderSemana(){
     ${DOW.map((label, i) => {
       const items = visible.filter(t => t.planDay === i);
       const isToday = i === TODAY_INDEX;
-      const cards = items.map(t => taskCardHTML(t, {
-        showMismatch: true,
-        dragCtx: id => `dropOnCardWeek(event, ${id}, ${i})`
-      })).join('');
+      const cardFn = t => simplifiedMode
+        ? simplePillHTML(t, { dragCtx: id => `dropOnCardWeek(event, ${id}, ${i})` })
+        : taskCardHTML(t, { showMismatch: true, dragCtx: id => `dropOnCardWeek(event, ${id}, ${i})` });
+      const cards = items.map(cardFn).join('');
       return `
         <div class="day ${isToday ? 'today' : ''}" ondragover="event.preventDefault()" ondrop="dropOnColumnWeek(event, ${i})">
           <div class="day-head">
@@ -2458,11 +2538,10 @@ function renderMes(){
     const dateObj = new Date(mesViewYear, mesViewMonth, mesSelectedDay);
     const dowLabel = DOW[(dateObj.getDay() + 6) % 7];
     const items = visible.filter(t => t.planMonthDay === mesSelectedDay && taskPlanMonth(t) === mesViewMonth && taskPlanYear(t) === mesViewYear);
-    const cards = items.map(t => taskCardHTML(t, {
-      showMismatch: true,
-      showMoveDay: true,
-      dragCtx: id => `dropOnCardMonthDay(event, ${id})`
-    })).join('');
+    const cardFn = t => simplifiedMode
+      ? simplePillHTML(t, { dragCtx: id => `dropOnCardMonthDay(event, ${id})` })
+      : taskCardHTML(t, { showMismatch: true, showMoveDay: true, dragCtx: id => `dropOnCardMonthDay(event, ${id})` });
+    const cards = items.map(cardFn).join('');
 
     el.innerHTML = `
       <button class="back-btn" onclick="voltarParaMes()">← Voltar para o mês</button>
@@ -2490,14 +2569,18 @@ function renderMes(){
     const isToday = inMonth && isCurrentMonth && dayNum === REF_TODAY_DAY;
     const items = inMonth ? visible.filter(t => t.planMonthDay === dayNum && taskPlanMonth(t) === mesViewMonth && taskPlanYear(t) === mesViewYear) : [];
 
+    const maxTitles = expandedLayout ? 6 : 1;
+    const shownItems = items.slice(0, maxTitles);
+    const remaining = items.length - shownItems.length;
+
     cellsHTML += `
       <div class="cell ${inMonth ? '' : 'outside'} ${isToday ? 'today' : ''}" ${inMonth ? `onclick="goToDay(${dayNum})" ondragover="event.preventDefault()" ondrop="dropOnCellMonthGrid(event, ${dayNum})"` : ''}>
         <div class="cell-date">${inMonth ? dayNum : ''}</div>
         <div class="dot-row">
           ${items.map(t => `<span class="mini-dot ${t.source}"></span>`).join('')}
         </div>
-        ${items[0] ? `<div class="mini-title" draggable="true" ondragstart="event.stopPropagation(); dragStart(event, ${items[0].id})">${items[0].title}</div>` : ''}
-        ${items.length > 1 ? `<div class="mini-title">+${items.length - 1} mais</div>` : ''}
+        ${shownItems.map(t => `<div class="mini-title" draggable="true" ondragstart="event.stopPropagation(); dragStart(event, ${t.id})">${t.title}</div>`).join('')}
+        ${remaining > 0 ? `<div class="mini-title">+${remaining} mais</div>` : ''}
       </div>
     `;
   }
@@ -2645,6 +2728,64 @@ function renderLista(){
     </div>
     ${bulkActionBarHTML()}
     ${visible.length ? visible.map(listRowHTML).join('') : '<div class="empty-hint">— nenhuma tarefa com esse filtro —</div>'}
+  `;
+}
+
+// -------- Visão simplificada (pills coloridas por categoria, só título + data) --------
+// Não é uma view própria — é um modo de renderização dentro de Kanban/Semana/Mês (dia), pra poder arrastar igual às comuns.
+// Preferência salva no localStorage (não é segredo, é só uma opção de exibição) pra não resetar toda vez que a página recarrega.
+let simplifiedMode = localStorage.getItem('ct_simplifiedMode') === '1';
+let simplifiedExpandedId = null;
+
+function toggleSimplifiedMode(){
+  simplifiedMode = !simplifiedMode;
+  localStorage.setItem('ct_simplifiedMode', simplifiedMode ? '1' : '0');
+  document.getElementById('simplified-btn').classList.toggle('active', simplifiedMode);
+  renderAll();
+}
+
+// Estica as colunas da Semana e a grade do Mês pra ocupar a altura da tela, em vez de ficarem espremidas no topo.
+let expandedLayout = localStorage.getItem('ct_expandedLayout') === '1';
+
+function toggleExpandedLayout(){
+  expandedLayout = !expandedLayout;
+  localStorage.setItem('ct_expandedLayout', expandedLayout ? '1' : '0');
+  document.getElementById('expand-btn').classList.toggle('active', expandedLayout);
+  document.body.classList.toggle('expanded-layout', expandedLayout);
+  renderAll();
+}
+
+function toggleSimplifiedExpand(id){
+  simplifiedExpandedId = (simplifiedExpandedId === id) ? null : id;
+  renderAll();
+}
+
+function simplePillHoverStart(el){
+  const max = el.scrollWidth - el.clientWidth;
+  if (max > 4) el.scrollLeft = max;
+}
+
+function simplePillHoverEnd(el){
+  el.scrollLeft = 0;
+}
+
+function simplePillHTML(t, opts = {}){
+  const { dragCtx = null } = opts;
+  const cat = categoryById(t.source);
+  const dateColor = darkenHexColor(cat.color, 0.4);
+  const expanded = simplifiedExpandedId === t.id;
+  const dropAttrs = dragCtx ? `ondragover="event.preventDefault()" ondrop="${dragCtx(t.id)}"` : '';
+  return `
+    <div>
+      <div class="simple-pill" draggable="true" ondragstart="dragStart(event, ${t.id})" ${dropAttrs} style="background:${cat.color};" onclick="toggleSimplifiedExpand(${t.id})">
+        <div class="simple-pill-title-wrap" onmouseenter="simplePillHoverStart(this)" onmouseleave="simplePillHoverEnd(this)">
+          <span class="simple-pill-title">${escapeHtml(t.title)}</span>
+        </div>
+        <div class="simple-pill-date" style="background:${dateColor};">${t.due || '—'}</div>
+        <span class="simple-pill-caret">${expanded ? '▴' : '▾'}</span>
+      </div>
+      ${expanded ? `<div class="simple-pill-expanded" onclick="event.stopPropagation()">${taskCardHTML(t, { showMismatch: true })}</div>` : ''}
+    </div>
   `;
 }
 
@@ -3113,21 +3254,22 @@ function renderCalendarios(){
 const VIEWS = ['kanban', 'semana', 'mes', 'lista', 'checklists', 'notas', 'calendarios'];
 const TASK_VIEWS = ['kanban', 'semana', 'mes', 'lista'];
 
-document.querySelectorAll('.view-toggle button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.view-toggle button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    currentView = btn.dataset.view;
-    VIEWS.forEach(v => {
-      document.getElementById(`${v}-view`).style.display = (v === currentView) ? 'block' : 'none';
-    });
-    const showTaskUI = TASK_VIEWS.includes(currentView);
-    document.querySelector('.filters').style.display = showTaskUI ? 'flex' : 'none';
-    document.getElementById('search-row').style.display = showTaskUI ? 'flex' : 'none';
-    document.getElementById('subcat-row').style.display = showTaskUI ? 'flex' : 'none';
-    document.getElementById('api-conn-row').style.display = (showTaskUI && API_CONNECTIONS.length) ? 'flex' : 'none';
-    document.getElementById('drag-hint').style.display = showTaskUI ? 'block' : 'none';
+function switchView(viewName){
+  document.querySelectorAll('.view-toggle button').forEach(b => b.classList.toggle('active', b.dataset.view === viewName));
+  currentView = viewName;
+  VIEWS.forEach(v => {
+    document.getElementById(`${v}-view`).style.display = (v === currentView) ? 'block' : 'none';
   });
+  const showTaskUI = TASK_VIEWS.includes(currentView);
+  document.querySelector('.filters').style.display = showTaskUI ? 'flex' : 'none';
+  document.getElementById('search-row').style.display = showTaskUI ? 'flex' : 'none';
+  document.getElementById('subcat-row').style.display = showTaskUI ? 'flex' : 'none';
+  document.getElementById('api-conn-row').style.display = (showTaskUI && API_CONNECTIONS.length) ? 'flex' : 'none';
+  document.getElementById('drag-hint').style.display = showTaskUI ? 'block' : 'none';
+}
+
+document.querySelectorAll('.view-toggle button').forEach(btn => {
+  btn.addEventListener('click', () => switchView(btn.dataset.view));
 });
 
 TASKS.forEach(t => {
@@ -4026,6 +4168,10 @@ renderCategoryFilters();
 renderSubcatRow();
 renderApiConnRow();
 renderAll();
+
+document.getElementById('simplified-btn').classList.toggle('active', simplifiedMode);
+document.getElementById('expand-btn').classList.toggle('active', expandedLayout);
+document.body.classList.toggle('expanded-layout', expandedLayout);
 </script>
 
 </body>
