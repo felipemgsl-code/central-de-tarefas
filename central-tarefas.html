@@ -714,7 +714,7 @@
   /* ---------- Lista ---------- */
   .list-row{
     display:grid;
-    grid-template-columns: 22px 92px 118px 128px 1fr 118px 108px;
+    grid-template-columns: 18px 22px 92px 118px 128px 1fr 118px 108px;
     align-items:center;
     gap: 10px;
     padding: 11px 14px;
@@ -914,6 +914,25 @@
     color: var(--text);
     text-align: center;
   }
+  .dp-head-nav{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap: 6px;
+  }
+  .dp-nav{
+    background: var(--surface);
+    border: 1px solid var(--line);
+    color: var(--muted);
+    border-radius: 4px;
+    width: 20px;
+    height: 20px;
+    line-height: 1;
+    cursor: pointer;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .dp-nav:hover{ color: var(--text); border-color: var(--muted-2); }
   .dp-dow-row{
     display:grid;
     grid-template-columns: repeat(7, 1fr);
@@ -964,6 +983,7 @@
       min-width: 0;
     }
     .lr-field.lr-origin{ position:absolute; top:10px; right:10px; }
+    .lr-field.lr-select{ position:absolute; top:8px; left:10px; }
     .lr-label{
       display:block;
       flex-shrink: 0;
@@ -1182,17 +1202,6 @@
 </head>
 <body>
 
-<div id="lock-screen" style="position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;">
-  <div style="background:var(--surface);padding:32px;border-radius:16px;border:1px solid var(--line);text-align:center;box-shadow:0 20px 50px rgba(0,0,0,0.5);">
-    <div style="font-family:'Space Grotesk',sans-serif;font-size:20px;margin-bottom:16px;color:var(--text);font-weight:700;">Central de Tarefas</div>
-    <div style="margin-bottom:16px;color:var(--muted);font-size:13px;">Digite sua senha para acessar:</div>
-    <input type="password" id="lock-pwd" maxlength="4" placeholder="••••" style="font-family:'IBM Plex Mono',monospace;font-size:28px;letter-spacing:4px;text-align:center;width:140px;padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--surface-2);color:var(--text);margin-bottom:16px;outline:none;" onkeydown="if(event.key==='Enter') checkLockPwd()" autofocus/>
-    <br>
-    <button onclick="checkLockPwd()" style="font-family:'Space Grotesk',sans-serif;font-weight:600;background:var(--freela);color:#fff;border:none;border-radius:8px;width:140px;padding:10px;font-size:14px;cursor:pointer;">Entrar</button>
-    <div id="lock-err" style="display:none;color:var(--danger);margin-top:16px;font-size:12.5px;font-weight:600;font-family:'IBM Plex Mono',monospace;">Senha incorreta!</div>
-  </div>
-</div>
-
 <div class="wrap">
 
   <header>
@@ -1235,6 +1244,7 @@
   <div class="filters" id="category-filters-row"></div>
 
   <div class="subcat-row" id="subcat-row"></div>
+  <div class="subcat-row" id="api-conn-row"></div>
 
   <div id="subcat-manager-overlay" style="display:none;"></div>
   <div id="category-manager-overlay" style="display:none;"></div>
@@ -1258,26 +1268,18 @@
   <div id="calendar-connect-overlay" style="display:none;"></div>
   <div id="drive-overlay" style="display:none;"></div>
   <div id="apis-overlay" style="display:none;"></div>
+  <div id="open-link-overlay" style="display:none;"></div>
 
 </div>
 
 <script>
-// -------- Tela de bloqueio (obfuscação simples, não é criptografia real) --------
-function checkLockPwd() {
-  const pwd = document.getElementById('lock-pwd').value;
-  let senhaMisturada = "";
-  if (pwd.length === 4) {
-    senhaMisturada = "Lfh#" + pwd[0] + "ks" + pwd[1] + "jh" + pwd[2] + "#DF" + pwd[3];
-  }
-  const expected = "Lfh#9ks0jh9#DF0";
-  if (senhaMisturada === expected) {
-    document.getElementById('lock-screen').style.display = 'none';
-  } else {
-    document.getElementById('lock-err').style.display = 'block';
-    document.getElementById('lock-pwd').value = '';
-    document.getElementById('lock-pwd').focus();
-  }
-}
+// -------- Constantes de data — declaradas logo no topo de propósito: várias outras seções --------
+// -------- referenciam REF_YEAR/REF_MONTH no nível superior do script, e se ficarem depois --------
+// -------- disso dá erro de "temporal dead zone" que trava a página inteira sem aviso no console. --------
+const MONTH_NAMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+const REF_YEAR = 2026;
+const REF_MONTH = 6; // Julho (0-indexed)
+const REF_TODAY_DAY = 9; // dia do mês usado como "hoje" neste exemplo
 
 // -------- Tarefas (vazio — pronto pra conectar as fontes reais ou criar as suas) --------
 const TASKS = [];
@@ -1643,6 +1645,8 @@ function createLocalTask(){
     notes: '',
     planDay,
     planMonthDay: day,
+    planMonth: REF_MONTH,
+    planYear: REF_YEAR,
     archived: false
   });
   newTaskModalOpen = false;
@@ -1695,24 +1699,90 @@ function visibleTasks(){
     if (t.archived) return false;
     if (!activeSources.has(t.source)) return false;
     if (activeSubcats.size > 0 && !activeSubcats.has(t.subcat)) return false;
+    if (t.apiConnectionId && !activeApiConnections.has(t.apiConnectionId)) return false;
     return true;
   });
 }
+
+let openLinkPopupTaskId = null;
 
 function openTask(id){
   const t = TASKS.find(x => x.id === id);
   if (!t) return;
   if (t.url) {
-    window.open(t.url, '_blank');
+    openLinkPopupTaskId = id;
+    renderOpenLinkPopup();
   }
   // tarefas "local" não têm link — clique não faz nada, ficam só no app
+}
+
+function closeOpenLinkPopup(){
+  openLinkPopupTaskId = null;
+  const el = document.getElementById('open-link-overlay');
+  el.style.display = 'none';
+  el.innerHTML = '';
+}
+
+function confirmOpenInNewTab(){
+  const t = TASKS.find(x => x.id === openLinkPopupTaskId);
+  if (t && t.url) window.open(t.url, '_blank');
+  closeOpenLinkPopup();
+}
+
+async function copyTaskLinkToClipboard(){
+  const t = TASKS.find(x => x.id === openLinkPopupTaskId);
+  if (!t || !t.url) return;
+  try {
+    await navigator.clipboard.writeText(t.url);
+    const btn = document.getElementById('copy-link-btn');
+    if (btn) btn.textContent = 'Copiado!';
+    setTimeout(closeOpenLinkPopup, 700);
+  } catch (e){
+    alert('Não consegui copiar automaticamente. Link: ' + t.url);
+  }
+}
+
+function renderOpenLinkPopup(){
+  const t = TASKS.find(x => x.id === openLinkPopupTaskId);
+  const el = document.getElementById('open-link-overlay');
+  if (!t){ el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'flex';
+  el.innerHTML = `
+    <div class="modal-backdrop" onclick="closeOpenLinkPopup()">
+      <div class="modal-panel" onclick="event.stopPropagation()" style="max-width:320px;">
+        <div class="modal-head">
+          <h3>Abrir tarefa</h3>
+          <button class="modal-close" onclick="closeOpenLinkPopup()">✕</button>
+        </div>
+        <div class="modal-body">
+          <div style="font-size:12.5px; color:var(--muted); margin-bottom:4px;">${escapeHtml(t.title)}</div>
+          <button class="modal-add-btn" style="width:100%; justify-content:center;" onclick="confirmOpenInNewTab()">↗ Abrir em nova aba</button>
+          <button class="modal-add-btn" id="copy-link-btn" style="width:100%; justify-content:center; margin-top:8px;" onclick="copyTaskLinkToClipboard()">⧉ Copiar link</button>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 function daysInRefMonth(){
   return new Date(REF_YEAR, REF_MONTH + 1, 0).getDate();
 }
 
+function daysInMonth(year, month){
+  return new Date(year, month + 1, 0).getDate();
+}
+
+function taskPlanMonth(t){
+  return t.planMonth != null ? t.planMonth : REF_MONTH;
+}
+
+function taskPlanYear(t){
+  return t.planYear != null ? t.planYear : REF_YEAR;
+}
+
 let dayPickerOpenFor = null;
+let dayPickerViewMonth = REF_MONTH;
+let dayPickerViewYear = REF_YEAR;
 
 const ICON_LINK = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>`;
 
@@ -1723,11 +1793,16 @@ function toggleAttachmentPicker(id){
   renderAll();
 }
 
-function saveAttachment(id){
+function saveAttachmentSilent(id){
   const input = document.getElementById(`attachment-input-${id}`);
+  if (!input) return;
   const val = input.value.trim();
   const t = TASKS.find(x => x.id === id);
   if (t) t.attachment = val || null;
+}
+
+function saveAttachment(id){
+  saveAttachmentSilent(id);
   attachmentPickerOpenFor = null;
   renderAll();
 }
@@ -1754,7 +1829,7 @@ function attachmentPickerHTML(t){
       ${hasLink ? `<button type="button" class="icon-btn" style="margin-left:2px;" onclick="toggleAttachmentPicker(${t.id})" title="Editar link">✎</button>` : ''}
       ${isOpen ? `
         <div class="day-picker-pop attachment-pop">
-          <input type="text" id="attachment-input-${t.id}" placeholder="https://..." value="${t.attachment ? escapeHtml(t.attachment) : ''}" onkeydown="if(event.key==='Enter') saveAttachment(${t.id})">
+          <input type="text" id="attachment-input-${t.id}" placeholder="https://..." value="${t.attachment ? escapeHtml(t.attachment) : ''}" onkeydown="if(event.key==='Enter') saveAttachment(${t.id})" onblur="saveAttachmentSilent(${t.id})">
           <div style="display:flex; gap:6px; margin-top:6px;">
             <button class="modal-add-btn" onclick="saveAttachment(${t.id})">Salvar</button>
             ${hasLink ? `<button class="btn-ghost" onclick="removeAttachment(${t.id})">Remover</button>` : ''}
@@ -1766,32 +1841,56 @@ function attachmentPickerHTML(t){
 }
 
 function toggleDayPicker(id){
-  dayPickerOpenFor = (dayPickerOpenFor === id) ? null : id;
+  const wasOpen = dayPickerOpenFor === id;
+  dayPickerOpenFor = wasOpen ? null : id;
+  if (!wasOpen){
+    const t = TASKS.find(x => x.id === id);
+    dayPickerViewMonth = t ? taskPlanMonth(t) : REF_MONTH;
+    dayPickerViewYear = t ? taskPlanYear(t) : REF_YEAR;
+  }
+  renderAll();
+}
+
+function shiftDayPickerMonth(delta){
+  dayPickerViewMonth += delta;
+  if (dayPickerViewMonth < 0){ dayPickerViewMonth = 11; dayPickerViewYear--; }
+  if (dayPickerViewMonth > 11){ dayPickerViewMonth = 0; dayPickerViewYear++; }
   renderAll();
 }
 
 function selectDayForTask(id, dayNum){
   const t = TASKS.find(x => x.id === id);
-  if (t) t.planMonthDay = dayNum;
+  if (t){
+    t.planMonthDay = dayNum;
+    t.planMonth = dayPickerViewMonth;
+    t.planYear = dayPickerViewYear;
+    t.planDay = (new Date(dayPickerViewYear, dayPickerViewMonth, dayNum).getDay() + 6) % 7;
+  }
   dayPickerOpenFor = null;
   renderAll();
 }
 
 function dayPickerCalendarHTML(t){
-  const daysInMonth = daysInRefMonth();
-  const firstOfMonth = new Date(REF_YEAR, REF_MONTH, 1);
+  const y = dayPickerViewYear;
+  const m = dayPickerViewMonth;
+  const total = daysInMonth(y, m);
+  const firstOfMonth = new Date(y, m, 1);
   const startOffset = (firstOfMonth.getDay() + 6) % 7;
-  const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7;
+  const totalCells = Math.ceil((startOffset + total) / 7) * 7;
   let cells = '';
   for (let i = 0; i < totalCells; i++){
     const dayNum = i - startOffset + 1;
-    const inMonth = dayNum >= 1 && dayNum <= daysInMonth;
-    const selected = inMonth && dayNum === t.planMonthDay;
+    const inMonth = dayNum >= 1 && dayNum <= total;
+    const selected = inMonth && dayNum === t.planMonthDay && m === taskPlanMonth(t) && y === taskPlanYear(t);
     cells += `<div class="dp-cell ${inMonth ? '' : 'outside'} ${selected ? 'selected' : ''}" ${inMonth ? `onclick="selectDayForTask(${t.id}, ${dayNum})"` : ''}>${inMonth ? dayNum : ''}</div>`;
   }
   return `
     <div class="day-picker-pop">
-      <div class="dp-head">${MONTH_NAMES[REF_MONTH]} ${REF_YEAR}</div>
+      <div class="dp-head dp-head-nav">
+        <button type="button" class="dp-nav" onclick="event.stopPropagation(); shiftDayPickerMonth(-1)">‹</button>
+        <span>${MONTH_NAMES[m]} ${y}</span>
+        <button type="button" class="dp-nav" onclick="event.stopPropagation(); shiftDayPickerMonth(1)">›</button>
+      </div>
       <div class="dp-dow-row">${DOW_SHORT.map(d => `<span>${d[0]}</span>`).join('')}</div>
       <div class="dp-grid">${cells}</div>
     </div>
@@ -1800,7 +1899,7 @@ function dayPickerCalendarHTML(t){
 
 function dayPickerHTML(t){
   const isOpen = dayPickerOpenFor === t.id;
-  const dow = DOW_SHORT[(new Date(REF_YEAR, REF_MONTH, t.planMonthDay).getDay() + 6) % 7];
+  const dow = DOW_SHORT[(new Date(taskPlanYear(t), taskPlanMonth(t), t.planMonthDay).getDay() + 6) % 7];
   const label = `${String(t.planMonthDay).padStart(2,'0')} (${dow})`;
   return `
     <div class="day-picker" onclick="event.stopPropagation()">
@@ -1921,16 +2020,32 @@ function categoryFieldHTML(t){
 // -------- Data de entrega — só editável em tarefas locais (não vindas de API) --------
 
 let dueEditOpenFor = null;
+let dueEditViewMonth = REF_MONTH;
+let dueEditViewYear = REF_YEAR;
 
 function toggleDueEdit(id){
-  dueEditOpenFor = (dueEditOpenFor === id) ? null : id;
+  const wasOpen = dueEditOpenFor === id;
+  dueEditOpenFor = wasOpen ? null : id;
+  if (!wasOpen){
+    const t = TASKS.find(x => x.id === id);
+    const m = t ? monthFromDue(t.due) : null;
+    dueEditViewMonth = m !== null ? m : REF_MONTH;
+    dueEditViewYear = REF_YEAR; // "due" não guarda ano, o app trabalha num ano só
+  }
+  renderAll();
+}
+
+function shiftDueEditMonth(delta){
+  dueEditViewMonth += delta;
+  if (dueEditViewMonth < 0){ dueEditViewMonth = 11; dueEditViewYear--; }
+  if (dueEditViewMonth > 11){ dueEditViewMonth = 0; dueEditViewYear++; }
   renderAll();
 }
 
 function selectDueDayForTask(id, dayNum){
   const t = TASKS.find(x => x.id === id);
   if (t){
-    const mm = String(REF_MONTH + 1).padStart(2, '0');
+    const mm = String(dueEditViewMonth + 1).padStart(2, '0');
     t.due = `${String(dayNum).padStart(2,'0')}.${mm}`;
   }
   dueEditOpenFor = null;
@@ -1938,21 +2053,28 @@ function selectDueDayForTask(id, dayNum){
 }
 
 function dueEditCalendarHTML(t){
-  const daysInMonth = daysInRefMonth();
-  const firstOfMonth = new Date(REF_YEAR, REF_MONTH, 1);
+  const y = dueEditViewYear;
+  const m = dueEditViewMonth;
+  const total = daysInMonth(y, m);
+  const firstOfMonth = new Date(y, m, 1);
   const startOffset = (firstOfMonth.getDay() + 6) % 7;
-  const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7;
+  const totalCells = Math.ceil((startOffset + total) / 7) * 7;
   const currentDay = dayOfMonthFromDue(t.due);
+  const currentMonth = monthFromDue(t.due);
   let cells = '';
   for (let i = 0; i < totalCells; i++){
     const dayNum = i - startOffset + 1;
-    const inMonth = dayNum >= 1 && dayNum <= daysInMonth;
-    const selected = inMonth && dayNum === currentDay;
+    const inMonth = dayNum >= 1 && dayNum <= total;
+    const selected = inMonth && dayNum === currentDay && m === currentMonth;
     cells += `<div class="dp-cell ${inMonth ? '' : 'outside'} ${selected ? 'selected' : ''}" ${inMonth ? `onclick="selectDueDayForTask(${t.id}, ${dayNum})"` : ''}>${inMonth ? dayNum : ''}</div>`;
   }
   return `
     <div class="day-picker-pop">
-      <div class="dp-head">${MONTH_NAMES[REF_MONTH]} ${REF_YEAR}</div>
+      <div class="dp-head dp-head-nav">
+        <button type="button" class="dp-nav" onclick="event.stopPropagation(); shiftDueEditMonth(-1)">‹</button>
+        <span>${MONTH_NAMES[m]} ${y}</span>
+        <button type="button" class="dp-nav" onclick="event.stopPropagation(); shiftDueEditMonth(1)">›</button>
+      </div>
       <div class="dp-dow-row">${DOW_SHORT.map(d => `<span>${d[0]}</span>`).join('')}</div>
       <div class="dp-grid">${cells}</div>
     </div>
@@ -2129,20 +2251,23 @@ function renderSemana(){
   </div>`;
 }
 
-const MONTH_NAMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
-const REF_YEAR = 2026;
-const REF_MONTH = 6; // Julho (0-indexed)
-const REF_TODAY_DAY = 9; // dia do mês usado como "hoje" neste exemplo
-
 function dayOfMonthFromDue(due){
   if (!due) return null;
   return parseInt(due.split('.')[0], 10);
 }
 
+function monthFromDue(due){
+  if (!due) return null;
+  const parts = due.split('.');
+  if (parts.length < 2) return null;
+  return parseInt(parts[1], 10) - 1;
+}
+
 function sourceWeekday(t){
   const day = dayOfMonthFromDue(t.due);
-  if (day === null) return null;
-  const d = new Date(REF_YEAR, REF_MONTH, day);
+  const month = monthFromDue(t.due);
+  if (day === null || month === null) return null;
+  const d = new Date(REF_YEAR, month, day);
   return (d.getDay() + 6) % 7;
 }
 
@@ -2153,7 +2278,9 @@ function dueLabel(t){
 
 function hasMismatch(t){
   if (!t.due) return false;
-  return t.planDay !== sourceWeekday(t) || t.planMonthDay !== dayOfMonthFromDue(t.due);
+  return t.planDay !== sourceWeekday(t)
+    || t.planMonthDay !== dayOfMonthFromDue(t.due)
+    || taskPlanMonth(t) !== monthFromDue(t.due);
 }
 
 // -------- Drag and drop (só organiza dentro da Central, nunca muda a fonte) --------
@@ -2213,7 +2340,12 @@ function dropOnCellMonthGrid(e, dayNum){
   e.preventDefault();
   if (draggedId == null) return;
   const t = TASKS.find(x => x.id === draggedId);
-  if (t) t.planMonthDay = dayNum;
+  if (t){
+    t.planMonthDay = dayNum;
+    t.planMonth = mesViewMonth;
+    t.planYear = mesViewYear;
+    t.planDay = (new Date(mesViewYear, mesViewMonth, dayNum).getDay() + 6) % 7;
+  }
   moveInArray(draggedId, null);
   draggedId = null; renderAll();
 }
@@ -2229,6 +2361,22 @@ function dropOnContainerMonthDay(e){
   if (draggedId == null) return;
   moveInArray(draggedId, null);
   draggedId = null; renderAll();
+}
+
+let mesViewMonth = REF_MONTH;
+let mesViewYear = REF_YEAR;
+
+function shiftMesMonth(delta){
+  mesViewMonth += delta;
+  if (mesViewMonth < 0){ mesViewMonth = 11; mesViewYear--; }
+  if (mesViewMonth > 11){ mesViewMonth = 0; mesViewYear++; }
+  renderMes();
+}
+
+function goToMesHoje(){
+  mesViewMonth = REF_MONTH;
+  mesViewYear = REF_YEAR;
+  renderMes();
 }
 
 function goToDay(dayNum){
@@ -2248,9 +2396,9 @@ function renderMes(){
   const el = document.getElementById('mes-view');
 
   if (mesSubView === "dia" && mesSelectedDay){
-    const dateObj = new Date(REF_YEAR, REF_MONTH, mesSelectedDay);
+    const dateObj = new Date(mesViewYear, mesViewMonth, mesSelectedDay);
     const dowLabel = DOW[(dateObj.getDay() + 6) % 7];
-    const items = visible.filter(t => t.planMonthDay === mesSelectedDay);
+    const items = visible.filter(t => t.planMonthDay === mesSelectedDay && taskPlanMonth(t) === mesViewMonth && taskPlanYear(t) === mesViewYear);
     const cards = items.map(t => taskCardHTML(t, {
       showMismatch: true,
       showMoveDay: true,
@@ -2260,7 +2408,7 @@ function renderMes(){
     el.innerHTML = `
       <button class="back-btn" onclick="voltarParaMes()">← Voltar para o mês</button>
       <div class="month-head">
-        <h2>${dowLabel}, ${String(mesSelectedDay).padStart(2,'0')} de ${MONTH_NAMES[REF_MONTH]}</h2>
+        <h2>${dowLabel}, ${String(mesSelectedDay).padStart(2,'0')} de ${MONTH_NAMES[mesViewMonth]}</h2>
         <span class="tc">${items.length} tarefa${items.length === 1 ? '' : 's'}</span>
       </div>
       <div ondragover="event.preventDefault()" ondrop="dropOnContainerMonthDay(event)">
@@ -2270,17 +2418,18 @@ function renderMes(){
     return;
   }
 
-  const firstOfMonth = new Date(REF_YEAR, REF_MONTH, 1);
-  const daysInMonth = new Date(REF_YEAR, REF_MONTH + 1, 0).getDate();
+  const firstOfMonth = new Date(mesViewYear, mesViewMonth, 1);
+  const totalDaysInMonth = daysInMonth(mesViewYear, mesViewMonth);
   const startOffset = (firstOfMonth.getDay() + 6) % 7; // segunda = 0
-  const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7;
+  const totalCells = Math.ceil((startOffset + totalDaysInMonth) / 7) * 7;
+  const isCurrentMonth = mesViewMonth === REF_MONTH && mesViewYear === REF_YEAR;
 
   let cellsHTML = '';
   for (let i = 0; i < totalCells; i++){
     const dayNum = i - startOffset + 1;
-    const inMonth = dayNum >= 1 && dayNum <= daysInMonth;
-    const isToday = inMonth && dayNum === REF_TODAY_DAY;
-    const items = inMonth ? visible.filter(t => t.planMonthDay === dayNum) : [];
+    const inMonth = dayNum >= 1 && dayNum <= totalDaysInMonth;
+    const isToday = inMonth && isCurrentMonth && dayNum === REF_TODAY_DAY;
+    const items = inMonth ? visible.filter(t => t.planMonthDay === dayNum && taskPlanMonth(t) === mesViewMonth && taskPlanYear(t) === mesViewYear) : [];
 
     cellsHTML += `
       <div class="cell ${inMonth ? '' : 'outside'} ${isToday ? 'today' : ''}" ${inMonth ? `onclick="goToDay(${dayNum})" ondragover="event.preventDefault()" ondrop="dropOnCellMonthGrid(event, ${dayNum})"` : ''}>
@@ -2296,7 +2445,12 @@ function renderMes(){
 
   el.innerHTML = `
     <div class="month-head">
-      <h2>${MONTH_NAMES[REF_MONTH]} ${REF_YEAR}</h2>
+      <h2 style="display:flex; align-items:center; gap:10px;">
+        <button type="button" class="dp-nav" onclick="shiftMesMonth(-1)">‹</button>
+        ${MONTH_NAMES[mesViewMonth]} ${mesViewYear}
+        <button type="button" class="dp-nav" onclick="shiftMesMonth(1)">›</button>
+        ${!isCurrentMonth ? `<button class="back-btn" style="margin:0; padding:4px 10px; font-size:11px;" onclick="goToMesHoje()">Hoje</button>` : ''}
+      </h2>
       <span class="tc">clique num dia para ver as tarefas, arraste para reorganizar</span>
     </div>
     <div class="dow-row">${DOW.map(d => `<span>${d}</span>`).join('')}</div>
@@ -2318,6 +2472,9 @@ function listRowHTML(t){
     || dueEditOpenFor === t.id || notesPickerOpenFor === t.id;
   return `
     <div class="list-row" onclick="openTask(${t.id})" style="cursor:${t.url ? 'pointer' : 'default'}; border-left-color:${cat.color};${pickerOpen ? ' position:relative; z-index:50;' : ''}">
+      <div class="lr-field lr-select" onclick="event.stopPropagation()">
+        <input type="checkbox" ${selectedTaskIds.has(t.id) ? 'checked' : ''} onchange="toggleTaskSelection(${t.id})">
+      </div>
       <div class="lr-field lr-origin">
         ${originBadgeHTML(t)}
       </div>
@@ -2353,8 +2510,62 @@ function listRowHTML(t){
   `;
 }
 
+let selectedTaskIds = new Set();
+
+function toggleTaskSelection(id){
+  if (selectedTaskIds.has(id)) selectedTaskIds.delete(id); else selectedTaskIds.add(id);
+  renderLista();
+}
+
+function clearTaskSelection(){
+  selectedTaskIds.clear();
+  renderLista();
+}
+
+function bulkSetCategory(catId){
+  if (!catId) return;
+  TASKS.forEach(t => { if (selectedTaskIds.has(t.id)) t.source = catId; });
+  renderAll();
+}
+
+function bulkSetSubcat(value){
+  if (!value) return;
+  const subcatId = value === '__none__' ? null : value;
+  TASKS.forEach(t => { if (selectedTaskIds.has(t.id)) t.subcat = subcatId; });
+  renderAll();
+}
+
+function bulkArchive(){
+  TASKS.forEach(t => { if (selectedTaskIds.has(t.id)) t.archived = true; });
+  selectedTaskIds.clear();
+  renderAll();
+}
+
+function bulkActionBarHTML(){
+  if (selectedTaskIds.size === 0) return '';
+  return `
+    <div class="filters" style="margin-bottom:14px; align-items:center; background:var(--surface-2); border-radius:10px; padding:10px 14px;">
+      <span class="tc" style="font-weight:600; color:var(--text);">${selectedTaskIds.size} selecionada${selectedTaskIds.size === 1 ? '' : 's'}</span>
+      <select onchange="bulkSetCategory(this.value); this.value='';">
+        <option value="">Mudar categoria...</option>
+        ${CATEGORIES.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
+      </select>
+      <select onchange="bulkSetSubcat(this.value); this.value='';">
+        <option value="">Mudar subcategoria...</option>
+        <option value="__none__">— sem subcategoria —</option>
+        ${SUBCATEGORIES.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}
+      </select>
+      <button class="add-subcat-trigger" onclick="bulkArchive()">Arquivar selecionadas</button>
+      <button class="add-subcat-trigger" onclick="clearTaskSelection()">Limpar seleção</button>
+    </div>
+  `;
+}
+
 function renderLista(){
   const visible = visibleTasks().slice();
+
+  const visibleIds = new Set(visible.map(t => t.id));
+  [...selectedTaskIds].forEach(id => { if (!visibleIds.has(id)) selectedTaskIds.delete(id); });
 
   if (listSortBy === 'due'){
     visible.sort((a, b) => dayOfMonthFromDue(a.due) - dayOfMonthFromDue(b.due));
@@ -2373,6 +2584,7 @@ function renderLista(){
       <button class="sort-btn ${listSortBy === 'planday' ? 'active' : ''}" onclick="setListSort('planday')">Dia pra fazer</button>
       <button class="sort-btn ${listSortBy === 'category' ? 'active' : ''}" onclick="setListSort('category')">Categoria</button>
     </div>
+    ${bulkActionBarHTML()}
     ${visible.length ? visible.map(listRowHTML).join('') : '<div class="empty-hint">— nenhuma tarefa com esse filtro —</div>'}
   `;
 }
@@ -2746,11 +2958,29 @@ async function loadCalendarsForAccount(email, token){
   }
 }
 
+let calRangeStart = null; // 'YYYY-MM-DD' — null = usa o padrão (hoje)
+let calRangeEnd = null;   // 'YYYY-MM-DD' — null = usa o padrão (hoje + 60 dias)
+
+function defaultCalRange(){
+  const start = new Date(); start.setHours(0,0,0,0);
+  const end = new Date(start); end.setDate(end.getDate() + 60);
+  return { start: start.toISOString().slice(0,10), end: end.toISOString().slice(0,10) };
+}
+
+function setCalRange(field, value){
+  if (field === 'start') calRangeStart = value || null;
+  else calRangeEnd = value || null;
+  refreshCalendarEvents();
+}
+
 async function refreshCalendarEvents(){
-  const timeMin = new Date();
-  timeMin.setHours(0,0,0,0);
-  const timeMax = new Date(timeMin);
-  timeMax.setDate(timeMax.getDate() + 60);
+  const def = defaultCalRange();
+  const startStr = calRangeStart || def.start;
+  const endStr = calRangeEnd || def.end;
+  const [sy, sm, sd] = startStr.split('-').map(Number);
+  const [ey, em, ed] = endStr.split('-').map(Number);
+  const timeMin = new Date(sy, sm - 1, sd, 0, 0, 0);
+  const timeMax = new Date(ey, em - 1, ed, 23, 59, 59);
   const results = [];
   for (const cal of CALENDARS){
     if (!activeCalendars.has(cal.id)) continue;
@@ -2795,6 +3025,8 @@ function renderCalendarios(){
   if (!el) return;
   const anyConnected = CALENDARS.length > 0;
   const visibleEvents = CALENDAR_EVENTS.filter(ev => activeCalendars.has(ev.calendarId));
+  const def = defaultCalRange();
+  const dateInputStyle = "font-family:'IBM Plex Mono',monospace; font-size:11px; background:var(--surface-2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:6px 8px;";
   el.innerHTML = `
     <div class="filters" style="margin-bottom: 24px;">
       ${CALENDARS.map(c => `
@@ -2803,13 +3035,18 @@ function renderCalendarios(){
         </div>
       `).join('')}
       <button class="add-subcat-trigger" onclick="openCalendarConnectInfo()">+ Conectar calendário</button>
-      ${anyConnected ? '<button class="add-subcat-trigger" onclick="refreshCalendarEvents()">↻ Atualizar</button>' : ''}
+      ${anyConnected ? `
+        <input type="date" value="${calRangeStart || def.start}" onchange="setCalRange('start', this.value)" style="${dateInputStyle}">
+        <span class="tc" style="align-self:center;">até</span>
+        <input type="date" value="${calRangeEnd || def.end}" onchange="setCalRange('end', this.value)" style="${dateInputStyle}">
+        <button class="add-subcat-trigger" onclick="refreshCalendarEvents()">↻ Atualizar</button>
+      ` : ''}
     </div>
     ${!anyConnected
       ? '<div class="empty-hint" style="padding: 60px 20px; line-height:1.7;">Nenhum calendário conectado ainda.<br>Clique em "+ Conectar calendário" e escolha a conta Google (ex: felipe@tamandua.org.br). Pra conectar mais de uma conta, clique de novo e escolha outra no popup.</div>'
       : visibleEvents.length
         ? `<div>${visibleEvents.map(calendarEventRowHTML).join('')}</div>`
-        : '<div class="empty-hint" style="padding: 60px 20px;">Nenhum evento nos próximos 60 dias pras agendas selecionadas.</div>'
+        : '<div class="empty-hint" style="padding: 60px 20px;">Nenhum evento no período selecionado pras agendas escolhidas.</div>'
     }
   `;
 }
@@ -2828,6 +3065,7 @@ document.querySelectorAll('.view-toggle button').forEach(btn => {
     const showTaskUI = TASK_VIEWS.includes(currentView);
     document.querySelector('.filters').style.display = showTaskUI ? 'flex' : 'none';
     document.getElementById('subcat-row').style.display = showTaskUI ? 'flex' : 'none';
+    document.getElementById('api-conn-row').style.display = (showTaskUI && API_CONNECTIONS.length) ? 'flex' : 'none';
     document.getElementById('drag-hint').style.display = showTaskUI ? 'block' : 'none';
   });
 });
@@ -2967,8 +3205,33 @@ async function driveCarregar(){
 // -------- Conectar APIs (Airtable, no futuro Notion) — token fica só no JSON salvo no Drive, nunca no código --------
 // Suporta várias conexões (vários Airtables, ex: trabalhos de clientes diferentes). Cada uma busca só os campos mapeados.
 
-let API_CONNECTIONS = []; // [{ id, type:'airtable', label, source, baseId, tableId, tableName, token, titleField, statusField, statusMap, dateField }] — vai pro backup/Drive
+let API_CONNECTIONS = []; // [{ id, type:'airtable'|'notion', label, source, ... }] — vai pro backup/Drive
 let AIRTABLE_SCHEMA_CACHE = null; // resultado da última busca de tabelas/campos pro formulário em andamento — só sessão, não persiste
+let NOTION_SCHEMA_CACHE = null; // idem, pro formulário de conexão do Notion
+let activeApiConnections = new Set(); // filtro de sessão (como activeSources/activeSubcats), não persiste
+
+function toggleApiConnFilter(id){
+  if (activeApiConnections.has(id)) activeApiConnections.delete(id); else activeApiConnections.add(id);
+  renderApiConnRow();
+  renderAll();
+}
+
+function renderApiConnRow(){
+  const el = document.getElementById('api-conn-row');
+  if (!el) return;
+  const showTaskUI = TASK_VIEWS.includes(currentView);
+  if (!API_CONNECTIONS.length){ el.innerHTML = ''; el.style.display = 'none'; return; }
+  el.style.display = showTaskUI ? 'flex' : 'none';
+  el.innerHTML = `
+    <span class="label">APIs conectadas</span>
+    ${API_CONNECTIONS.map(c => `
+      <div class="chip subcat-chip ${activeApiConnections.has(c.id) ? 'on' : ''}" style="--dotcolor:${categoryById(c.source).color}" onclick="toggleApiConnFilter('${c.id}')">
+        <span class="dot"></span>${escapeHtml(c.label)}
+      </div>
+    `).join('')}
+    <button class="add-subcat-trigger" onclick="openApisConnect()">Gerenciar</button>
+  `;
+}
 
 function openApisConnect(){
   renderApisModal('list');
@@ -2978,22 +3241,26 @@ function closeApisConnect(){
   document.getElementById('apis-overlay').style.display = 'none';
   document.getElementById('apis-overlay').innerHTML = '';
   AIRTABLE_SCHEMA_CACHE = null;
+  NOTION_SCHEMA_CACHE = null;
 }
 
 function guessStatusBucket(name){
   const n = name.toLowerCase();
-  if (/(feito|conclu|done|pronto|finaliz|aprova|retorno|aguard|espera)/.test(n)) return 'waiting';
-  if (/(fazendo|andamento|progress|doing|execu)/.test(n)) return 'doing';
+  if (/(feito|conclu|done|pronto|finaliz)/.test(n)) return 'skip';
+  if (/(aprova|retorno|aguard|espera)/.test(n)) return 'waiting';
+  if (/(fazendo|andamento|progress|doing|execu|produ|altera)/.test(n)) return 'doing';
   return 'todo';
 }
 
 function removeApiConnection(id){
   if (!confirm('Remover essa conexão e apagar as tarefas importadas por ela?')) return;
   API_CONNECTIONS = API_CONNECTIONS.filter(c => c.id !== id);
+  activeApiConnections.delete(id);
   const keep = TASKS.filter(t => t.apiConnectionId !== id);
   TASKS.length = 0;
   TASKS.push(...keep);
   renderApisModal('list');
+  renderApiConnRow();
   renderAll();
 }
 
@@ -3032,6 +3299,8 @@ function renderApisModal(step){
     const selectedStatusId = document.getElementById('at-status-select')?.value;
     const statusField = fields.find(f => f.id === selectedStatusId) || null;
     const statusChoices = (statusField && statusField.options) ? statusField.options.choices : [];
+    const selectedFilterField = document.getElementById('at-filter-field-select')?.value || '';
+    const filterValue = document.getElementById('at-filter-value')?.value || '';
 
     el.innerHTML = `
       <div class="modal-backdrop" onclick="closeApisConnect()">
@@ -3055,20 +3324,39 @@ function renderApisModal(step){
             <select id="at-title-select">
               ${fields.map(f => `<option value="${escapeHtml(f.name)}">${escapeHtml(f.name)}</option>`).join('')}
             </select>
+
+            <div style="font-size:11px; color:var(--muted-2); text-transform:uppercase; letter-spacing:.04em; margin-top:8px;">Só puxar tarefas de (opcional)</div>
+            <select id="at-filter-field-select" onchange="renderApisModal('airtable-mapping')">
+              <option value="">(todas as tarefas da tabela)</option>
+              ${fields.map(f => `<option value="${escapeHtml(f.name)}" ${selectedFilterField === f.name ? 'selected' : ''}>${escapeHtml(f.name)}</option>`).join('')}
+            </select>
+            ${selectedFilterField ? `<input type="text" id="at-filter-value" placeholder="ex: Felipe Diniz" value="${escapeHtml(filterValue)}" style="margin-top:6px;">` : ''}
+
             <div style="font-size:11px; color:var(--muted-2); text-transform:uppercase; letter-spacing:.04em; margin-top:8px;">Campo de status</div>
             <select id="at-status-select" onchange="renderApisModal('airtable-mapping')">
               <option value="">(nenhum — tudo entra como "A Fazer")</option>
               ${fields.map(f => `<option value="${f.id}" ${statusField && f.id === statusField.id ? 'selected' : ''}>${escapeHtml(f.name)}</option>`).join('')}
             </select>
             ${statusChoices.length ? `
-              <div style="font-size:11px; color:var(--muted); margin:8px 0 4px; line-height:1.5;">O que cada opção de status vira no Kanban:</div>
+              <div style="font-size:11px; color:var(--muted); margin:8px 0 4px; line-height:1.5;">O que cada status vira aqui (Kanban + subcategoria opcional):</div>
+              <div style="display:grid; grid-template-columns: 1fr 118px 118px; gap:6px; margin-bottom:4px;">
+                <span></span>
+                <span style="font-size:9.5px; color:var(--muted-2); text-transform:uppercase;">Kanban</span>
+                <span style="font-size:9.5px; color:var(--muted-2); text-transform:uppercase;">Subcategoria</span>
+              </div>
               ${statusChoices.map(c => `
-                <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
-                  <span style="flex:1; font-size:12px;">${escapeHtml(c.name)}</span>
-                  <select id="at-statusmap-${escapeHtml(c.id)}" style="font-family:'IBM Plex Mono',monospace; font-size:11px; background:var(--surface); border:1px solid var(--line); color:var(--text); border-radius:4px; padding:4px 6px;">
+                <div style="display:grid; grid-template-columns: 1fr 118px 118px; gap:6px; align-items:center; margin-bottom:4px;">
+                  <span style="font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(c.name)}</span>
+                  <select id="at-statusmap-${escapeHtml(c.id)}" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; background:var(--surface); border:1px solid var(--line); color:var(--text); border-radius:4px; padding:4px 4px;">
                     <option value="todo" ${guessStatusBucket(c.name) === 'todo' ? 'selected' : ''}>A Fazer</option>
                     <option value="doing" ${guessStatusBucket(c.name) === 'doing' ? 'selected' : ''}>Fazendo</option>
-                    <option value="waiting" ${guessStatusBucket(c.name) === 'waiting' ? 'selected' : ''}>Esperando Retorno</option>
+                    <option value="waiting" ${guessStatusBucket(c.name) === 'waiting' ? 'selected' : ''}>Esp. Retorno</option>
+                    <option value="archived" ${guessStatusBucket(c.name) === 'archived' ? 'selected' : ''}>Já arquivada</option>
+                    <option value="skip" ${guessStatusBucket(c.name) === 'skip' ? 'selected' : ''}>Não importar</option>
+                  </select>
+                  <select id="at-statussubcat-${escapeHtml(c.id)}" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; background:var(--surface); border:1px solid var(--line); color:var(--text); border-radius:4px; padding:4px 4px;">
+                    <option value="">— nenhuma —</option>
+                    ${SUBCATEGORIES.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}
                   </select>
                 </div>
               `).join('')}
@@ -3102,8 +3390,74 @@ function renderApisModal(step){
             <div style="font-size:11px; color:var(--muted-2); text-transform:uppercase; letter-spacing:.04em;">Personal Access Token</div>
             <input type="password" id="at-token" placeholder="pat...">
             <div style="font-size:11px; color:var(--muted-2); text-transform:uppercase; letter-spacing:.04em; margin-top:8px;">Base ID</div>
-            <input type="text" id="at-base" placeholder="appXXXXXXXXXXXXXX" value="appPqHdxVHl7mYykV">
+            <input type="text" id="at-base" placeholder="appXXXXXXXXXXXXXX">
             <button class="modal-add-btn" id="at-fetch-btn" style="margin-top:12px; width:100%; justify-content:center;" onclick="airtableFetchSchema()">Buscar tabelas</button>
+          </div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  if (step === 'notion-mapping' && NOTION_SCHEMA_CACHE){
+    const cache = NOTION_SCHEMA_CACHE;
+    const props = cache.properties;
+    const propNames = Object.keys(props);
+    const titleProp = propNames.find(n => props[n].type === 'title') || null;
+    const dateProps = propNames.filter(n => props[n].type === 'date');
+    const selectedDateProp = document.getElementById('nt-date-select')?.value || dateProps[0] || '';
+
+    el.innerHTML = `
+      <div class="modal-backdrop" onclick="closeApisConnect()">
+        <div class="modal-panel" onclick="event.stopPropagation()">
+          <div class="modal-head">
+            <h3>Conectar Notion</h3>
+            <button class="modal-close" onclick="closeApisConnect()">✕</button>
+          </div>
+          <div class="modal-body">
+            <div style="font-size:11px; color:var(--muted-2); text-transform:uppercase; letter-spacing:.04em;">Nome dessa conexão</div>
+            <input type="text" id="nt-label" placeholder="ex: Base Notion" value="${escapeHtml(cache.databaseName || '')}">
+            <div style="font-size:11px; color:var(--muted-2); text-transform:uppercase; letter-spacing:.04em; margin-top:8px;">Categoria das tarefas</div>
+            <select id="nt-source-select">
+              ${CATEGORIES.map(c => `<option value="${c.id}" ${c.id === 'trabalho' ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}
+            </select>
+            <div style="font-size:11px; color:var(--muted-2); text-transform:uppercase; letter-spacing:.04em; margin-top:8px;">Campo do título</div>
+            <select disabled style="opacity:.6;">
+              <option>${escapeHtml(titleProp || '(nenhuma propriedade de título encontrada)')}</option>
+            </select>
+            <div style="font-size:11px; color:var(--muted-2); text-transform:uppercase; letter-spacing:.04em; margin-top:8px;">Campo de data</div>
+            <select id="nt-date-select">
+              ${dateProps.length ? dateProps.map(n => `<option value="${escapeHtml(n)}" ${n === selectedDateProp ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('') : '<option value="">(nenhuma propriedade de data encontrada)</option>'}
+            </select>
+            <div style="font-size:11px; color:var(--muted); line-height:1.5; margin-top:8px;">Só importa tarefas com essa data igual ou depois de hoje — nada de datas passadas. Só título e data são trazidos.</div>
+            <button class="modal-add-btn" style="margin-top:12px; width:100%; justify-content:center;" ${(!titleProp || !dateProps.length) ? 'disabled' : ''} onclick="notionSaveConnectionAndSync()">Conectar e importar</button>
+          </div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  if (step === 'notion-form'){
+    el.innerHTML = `
+      <div class="modal-backdrop" onclick="closeApisConnect()">
+        <div class="modal-panel" onclick="event.stopPropagation()">
+          <div class="modal-head">
+            <h3>Conectar Notion</h3>
+            <button class="modal-close" onclick="closeApisConnect()">✕</button>
+          </div>
+          <div class="modal-body">
+            <div style="font-size:12.5px; color:var(--muted); line-height:1.6; margin-bottom:10px;">
+              O Notion bloqueia chamadas direto do navegador, então isso passa por um proxy simples (seu próprio Cloudflare Worker) que só repassa a chamada — o token não fica salvo lá, só passa. Só leitura, nunca escreve nada de volta na sua base.
+            </div>
+            <div style="font-size:11px; color:var(--muted-2); text-transform:uppercase; letter-spacing:.04em;">URL do Worker (proxy)</div>
+            <input type="text" id="nt-worker" placeholder="https://seu-worker.workers.dev">
+            <div style="font-size:11px; color:var(--muted-2); text-transform:uppercase; letter-spacing:.04em; margin-top:8px;">Integration Token</div>
+            <input type="password" id="nt-token" placeholder="ntn_... ou secret_...">
+            <div style="font-size:11px; color:var(--muted-2); text-transform:uppercase; letter-spacing:.04em; margin-top:8px;">Link ou ID da base no Notion</div>
+            <input type="text" id="nt-db" placeholder="cole o link da base">
+            <div style="font-size:11px; color:var(--muted); line-height:1.5; margin-top:8px;">Lembrete: a base precisa estar compartilhada com essa integração no Notion ("Connect to" &gt; nome da integração).</div>
+            <button class="modal-add-btn" id="nt-fetch-btn" style="margin-top:12px; width:100%; justify-content:center;" onclick="notionFetchSchema()">Buscar propriedades</button>
           </div>
         </div>
       </div>
@@ -3128,6 +3482,7 @@ function renderApisModal(step){
             </div>
           `).join('') : '<div style="font-size:12.5px; color:var(--muted); margin-bottom:10px;">Nenhuma API conectada ainda.</div>'}
           <button class="modal-add-btn" style="margin-top:12px; width:100%; justify-content:center;" onclick="renderApisModal('airtable-form')">+ Conectar Airtable</button>
+          <button class="modal-add-btn" style="margin-top:8px; width:100%; justify-content:center;" onclick="renderApisModal('notion-form')">+ Conectar Notion</button>
         </div>
       </div>
     </div>
@@ -3144,12 +3499,18 @@ function airtableSaveConnectionAndSync(){
   const dateField = document.getElementById('at-date-select').value;
   const label = document.getElementById('at-label').value.trim() || table.name;
   const source = document.getElementById('at-source-select').value;
+  const filterField = document.getElementById('at-filter-field-select').value || null;
+  const filterValue = filterField ? (document.getElementById('at-filter-value')?.value || '').trim() : '';
 
   const statusMap = {};
   if (statusField && statusField.options){
     statusField.options.choices.forEach(c => {
-      const sel = document.getElementById(`at-statusmap-${c.id}`);
-      statusMap[c.name] = sel ? sel.value : 'todo';
+      const bucketSel = document.getElementById(`at-statusmap-${c.id}`);
+      const subcatSel = document.getElementById(`at-statussubcat-${c.id}`);
+      statusMap[c.name] = {
+        bucket: bucketSel ? bucketSel.value : 'todo',
+        subcat: subcatSel ? (subcatSel.value || null) : null,
+      };
     });
   }
 
@@ -3166,11 +3527,15 @@ function airtableSaveConnectionAndSync(){
     statusField: statusField ? statusField.name : null,
     statusMap,
     dateField: dateField || null,
+    filterField,
+    filterValue,
   };
   API_CONNECTIONS = API_CONNECTIONS.filter(c => c.id !== conn.id);
   API_CONNECTIONS.push(conn);
+  activeApiConnections.add(conn.id);
   AIRTABLE_SCHEMA_CACHE = null;
   renderApisModal('list');
+  renderApiConnRow();
   syncApiConnection(conn.id);
 }
 
@@ -3184,6 +3549,8 @@ function airtableDateToDue(raw){
     due: `${String(d).padStart(2,'0')}.${String(m).padStart(2,'0')}`,
     planDay: (localDate.getDay() + 6) % 7,
     planMonthDay: d,
+    planMonth: m - 1,
+    planYear: y,
   };
 }
 
@@ -3191,10 +3558,171 @@ async function syncApiConnection(connId){
   const conn = API_CONNECTIONS.find(c => c.id === connId);
   if (!conn){ alert('Conexão não encontrada.'); return; }
   if (conn.type === 'airtable') await syncAirtableConnection(conn);
+  if (conn.type === 'notion') await syncNotionConnection(conn);
+}
+
+const NOTION_VERSION = '2022-06-28';
+
+function extractNotionId(raw){
+  const match = String(raw || '').replace(/-/g, '').match(/[0-9a-fA-F]{32}/);
+  if (!match) return null;
+  const hex = match[0];
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20,32)}`;
+}
+
+async function notionFetchSchema(){
+  const workerUrl = document.getElementById('nt-worker').value.trim().replace(/\/$/, '');
+  const token = document.getElementById('nt-token').value.trim();
+  const dbId = extractNotionId(document.getElementById('nt-db').value.trim());
+  if (!workerUrl || !token || !dbId){ alert('Preencha a URL do Worker, o token e o link/ID da base.'); return; }
+  const btn = document.getElementById('nt-fetch-btn');
+  if (btn) btn.textContent = 'Buscando...';
+  try {
+    const resp = await fetch(`${workerUrl}/v1/databases/${dbId}`, {
+      headers: { Authorization: 'Bearer ' + token, 'Notion-Version': NOTION_VERSION },
+    });
+    if (!resp.ok){
+      const err = await resp.json().catch(() => ({}));
+      alert('Erro ao buscar a base: ' + (err.message || resp.status));
+      if (btn) btn.textContent = 'Buscar propriedades';
+      return;
+    }
+    const data = await resp.json();
+    NOTION_SCHEMA_CACHE = {
+      workerUrl, token, databaseId: dbId,
+      databaseName: (data.title || []).map(t => t.plain_text).join('') || null,
+      properties: data.properties || {},
+    };
+    renderApisModal('notion-mapping');
+  } catch (e){
+    alert('Erro ao buscar a base: ' + e.message);
+    if (btn) btn.textContent = 'Buscar propriedades';
+  }
+}
+
+function notionSaveConnectionAndSync(){
+  const cache = NOTION_SCHEMA_CACHE;
+  const propNames = Object.keys(cache.properties);
+  const titleProp = propNames.find(n => cache.properties[n].type === 'title');
+  const dateProp = document.getElementById('nt-date-select').value;
+  const label = document.getElementById('nt-label').value.trim() || cache.databaseName || 'Notion';
+  const source = document.getElementById('nt-source-select').value;
+  if (!titleProp || !dateProp){ alert('Essa base precisa ter uma propriedade de título e uma de data.'); return; }
+
+  const conn = {
+    id: `nt-${cache.databaseId}`,
+    type: 'notion',
+    label,
+    source,
+    workerUrl: cache.workerUrl,
+    token: cache.token,
+    databaseId: cache.databaseId,
+    databaseName: cache.databaseName,
+    titleProp,
+    dateProp,
+  };
+  API_CONNECTIONS = API_CONNECTIONS.filter(c => c.id !== conn.id);
+  API_CONNECTIONS.push(conn);
+  activeApiConnections.add(conn.id);
+  NOTION_SCHEMA_CACHE = null;
+  renderApisModal('list');
+  renderApiConnRow();
+  syncApiConnection(conn.id);
+}
+
+async function syncNotionConnection(conn){
+  const { workerUrl, token, databaseId, titleProp, dateProp } = conn;
+  const todayYMD = new Date().toISOString().slice(0, 10);
+  let results = [];
+  let cursor = null;
+  try {
+    do {
+      const body = {
+        filter: { property: dateProp, date: { on_or_after: todayYMD } },
+        sorts: [{ property: dateProp, direction: 'ascending' }],
+        page_size: 100,
+      };
+      if (cursor) body.start_cursor = cursor;
+      const resp = await fetch(`${workerUrl}/v1/databases/${databaseId}/query`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token, 'Notion-Version': NOTION_VERSION, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok){
+        const err = await resp.json().catch(() => ({}));
+        alert(`Erro ao buscar tarefas do Notion (${conn.label}): ` + (err.message || resp.status));
+        return;
+      }
+      const data = await resp.json();
+      results = results.concat(data.results || []);
+      cursor = data.has_more ? data.next_cursor : null;
+    } while (cursor);
+  } catch (e){
+    alert(`Erro ao buscar tarefas do Notion (${conn.label}): ` + e.message);
+    return;
+  }
+
+  let imported = 0;
+  results.forEach(page => {
+    const props = page.properties || {};
+    const titleParts = (props[titleProp]?.title || []);
+    const title = titleParts.map(t => t.plain_text).join('') || '(sem título)';
+    const rawDate = props[dateProp]?.date?.start || null;
+    const dateInfo = rawDate ? airtableDateToDue(rawDate) : null;
+    if (!dateInfo) return; // sem data válida, não importa (só queremos título + data)
+    const existing = TASKS.find(x => x.apiConnectionId === conn.id && x.notionPageId === page.id);
+
+    if (existing){
+      existing.title = title;
+      existing.url = page.url;
+      existing.due = dateInfo.due;
+      existing.planDay = dateInfo.planDay;
+      existing.planMonthDay = dateInfo.planMonthDay;
+      existing.planMonth = dateInfo.planMonth;
+      existing.planYear = dateInfo.planYear;
+    } else {
+      TASKS.push({
+        id: nextTaskId++,
+        title,
+        source: conn.source,
+        subcat: null,
+        status: 'todo',
+        due: dateInfo.due,
+        url: page.url,
+        attachment: null,
+        notes: '',
+        planDay: dateInfo.planDay,
+        planMonthDay: dateInfo.planMonthDay,
+        planMonth: dateInfo.planMonth,
+        planYear: dateInfo.planYear,
+        archived: false,
+        apiConnectionId: conn.id,
+        notionPageId: page.id,
+      });
+    }
+    imported++;
+  });
+
+  renderAll();
+  alert(`Importado! ${imported} tarefa(s) de "${conn.label}".`);
+}
+
+function airtableValueMatches(raw, expected){
+  const target = (expected || '').trim().toLowerCase();
+  if (!target) return true;
+  if (raw == null) return false;
+  const norm = (v) => {
+    if (v == null) return '';
+    if (typeof v === 'string') return v.toLowerCase();
+    if (typeof v === 'object') return [v.name, v.email, v.id].filter(Boolean).join(' ').toLowerCase();
+    return String(v).toLowerCase();
+  };
+  if (Array.isArray(raw)) return raw.some(item => norm(item).includes(target));
+  return norm(raw).includes(target);
 }
 
 async function syncAirtableConnection(conn){
-  const { token, baseId, tableId, titleField, statusField, statusMap, dateField } = conn;
+  const { token, baseId, tableId, titleField, statusField, statusMap, dateField, filterField, filterValue } = conn;
   let records = [];
   let offset = null;
   try {
@@ -3204,6 +3732,7 @@ async function syncAirtableConnection(conn){
       if (titleField) url.searchParams.append('fields[]', titleField);
       if (statusField) url.searchParams.append('fields[]', statusField);
       if (dateField) url.searchParams.append('fields[]', dateField);
+      if (filterField) url.searchParams.append('fields[]', filterField);
       if (offset) url.searchParams.set('offset', offset);
       const resp = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
       if (!resp.ok){
@@ -3220,25 +3749,49 @@ async function syncAirtableConnection(conn){
     return;
   }
 
+  if (filterField){
+    records = records.filter(rec => airtableValueMatches((rec.fields || {})[filterField], filterValue));
+  }
+
+  let imported = 0;
+  let skipped = 0;
   records.forEach(rec => {
     const fields = rec.fields || {};
     const title = (titleField && fields[titleField]) ? String(fields[titleField]) : '(sem título)';
     const rawStatus = statusField ? fields[statusField] : null;
-    const status = (rawStatus && statusMap[rawStatus]) ? statusMap[rawStatus] : 'todo';
+    const mapping = (rawStatus && statusMap[rawStatus]) ? statusMap[rawStatus] : { bucket: 'todo', subcat: null };
     const dateInfo = dateField ? airtableDateToDue(fields[dateField]) : null;
     const link = `https://airtable.com/${baseId}/${tableId}/${rec.id}`;
-
     const existing = TASKS.find(x => x.apiConnectionId === conn.id && x.airtableRecordId === rec.id);
+
+    if (mapping.bucket === 'skip'){
+      if (existing) TASKS.splice(TASKS.indexOf(existing), 1);
+      skipped++;
+      return;
+    }
+
+    const status = mapping.bucket === 'archived' ? 'todo' : mapping.bucket;
+    const archived = mapping.bucket === 'archived';
+
     if (existing){
       existing.title = title;
       existing.status = status;
+      existing.archived = archived;
+      existing.subcat = mapping.subcat || null;
       existing.url = link;
-      if (dateInfo){ existing.due = dateInfo.due; existing.planDay = dateInfo.planDay; existing.planMonthDay = dateInfo.planMonthDay; }
+      if (dateInfo){
+        existing.due = dateInfo.due;
+        existing.planDay = dateInfo.planDay;
+        existing.planMonthDay = dateInfo.planMonthDay;
+        existing.planMonth = dateInfo.planMonth;
+        existing.planYear = dateInfo.planYear;
+      }
     } else {
       TASKS.push({
         id: nextTaskId++,
         title,
         source: conn.source,
+        subcat: mapping.subcat || null,
         status,
         due: dateInfo ? dateInfo.due : null,
         url: link,
@@ -3246,15 +3799,18 @@ async function syncAirtableConnection(conn){
         notes: '',
         planDay: dateInfo ? dateInfo.planDay : null,
         planMonthDay: dateInfo ? dateInfo.planMonthDay : null,
-        archived: false,
+        planMonth: dateInfo ? dateInfo.planMonth : null,
+        planYear: dateInfo ? dateInfo.planYear : null,
+        archived,
         apiConnectionId: conn.id,
         airtableRecordId: rec.id,
       });
     }
+    imported++;
   });
 
   renderAll();
-  alert(`Importado! ${records.length} tarefa(s) de "${conn.label}".`);
+  alert(`Importado! ${imported} tarefa(s) de "${conn.label}"${skipped ? ` (${skipped} pulada(s) por status "Não importar")` : ''}.`);
 }
 
 async function syncAllApiConnections(){
@@ -3286,6 +3842,7 @@ function importStateFromJSON(jsonText){
 
   activeSources = new Set(CATEGORIES.map(c => c.id));
   activeSubcats = new Set();
+  activeApiConnections = new Set(API_CONNECTIONS.map(c => c.id));
   TASKS.forEach(t => {
     if (t.planDay === undefined) t.planDay = sourceWeekday(t);
     if (t.planMonthDay === undefined) t.planMonthDay = dayOfMonthFromDue(t.due);
@@ -3294,6 +3851,7 @@ function importStateFromJSON(jsonText){
 
   renderCategoryFilters();
   renderSubcatRow();
+  renderApiConnRow();
   renderAll();
 
   if (API_CONNECTIONS.length) syncAllApiConnections();
@@ -3347,6 +3905,7 @@ window.addEventListener('drop', (e) => {
 
 renderCategoryFilters();
 renderSubcatRow();
+renderApiConnRow();
 renderAll();
 </script>
 
