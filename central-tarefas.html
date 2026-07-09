@@ -2394,7 +2394,11 @@ function toggleShowArchivedLocal(){
 
 function toggleArchiveTask(id){
   const t = TASKS.find(x => x.id === id);
-  if (t) t.archived = !t.archived;
+  if (t){
+    t.archived = !t.archived;
+    // Arquivar/reativar é decisão manual — o sync da API não pode desfazer isso.
+    t.statusUserSet = true;
+  }
   renderAll();
 }
 
@@ -3450,7 +3454,7 @@ function bulkSetPlanDay(value){
 }
 
 function bulkArchive(){
-  TASKS.forEach(t => { if (selectedTaskIds.has(t.id)) t.archived = true; });
+  TASKS.forEach(t => { if (selectedTaskIds.has(t.id)){ t.archived = true; t.statusUserSet = true; } });
   selectedTaskIds.clear();
   renderAll();
 }
