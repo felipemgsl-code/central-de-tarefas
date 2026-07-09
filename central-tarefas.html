@@ -429,6 +429,10 @@
   .simple-pill-expanded{ margin: -2px 0 8px; }
   .simple-pill-expanded .task{ margin-bottom: 0; cursor: default; }
 
+  /* seleção múltipla no Kanban (Ctrl/Cmd + clique) */
+  .task.kanban-selected{ outline: 2px solid var(--freela); outline-offset: 1px; }
+  .simple-pill.kanban-selected{ outline: 2px solid #fff; outline-offset: 2px; }
+
   .modal-body > input[type="text"],
   .modal-body > select{
     font-family: 'IBM Plex Mono', monospace;
@@ -493,6 +497,28 @@
 
   /* espaço embaixo da busca pra ela não colar na faixa de subcategorias */
   #search-row{ margin-bottom: 34px; }
+
+  /* ---------- Toast (mensagem rápida, ex: "Ação desfeita") ---------- */
+  #app-toast{
+    position: fixed;
+    left: 50%;
+    bottom: 28px;
+    transform: translateX(-50%) translateY(12px);
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 10px 18px;
+    border-radius: 10px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+    z-index: 800;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .18s ease, transform .18s ease;
+  }
+  #app-toast.show{ opacity: 1; transform: translateX(-50%) translateY(0); }
 
   /* ---------- Diálogos do próprio app (substituem alert/confirm/prompt do navegador) ---------- */
   #app-dialog-overlay{ position: fixed; inset: 0; z-index: 700; display: none; align-items: center; justify-content: center; }
@@ -654,6 +680,19 @@
     margin: 6px 0 8px;
     color: var(--text);
   }
+
+  /* prévia da observação — até 1 linha, com reticências */
+  .task .task-note-line{
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.4;
+    margin: -3px 0 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .task .task-note-line::before{ content: "✎ "; color: var(--muted-2); }
 
   .task .meta{
     display:flex;
@@ -2660,7 +2699,9 @@ function originBadgeHTML(t){
 }
 
 function taskCardHTML(t, opts = {}){
-  const { showMismatch = false, dragCtx = null, showMoveDay = false } = opts;
+  const { showMismatch = false, dragCtx = null, showMoveDay = false, selectable = false } = opts;
+  const selected = selectable && kanbanSelected.has(t.id);
+  const clickAttr = selectable ? `handleTaskClick(event, ${t.id})` : `openTask(${t.id})`;
   const linked = !!t.url;
   const cat = categoryById(t.source);
   const catDim = darkenHexColor(cat.color);
@@ -2676,7 +2717,7 @@ function taskCardHTML(t, opts = {}){
       ${t.archived ? `<button class="icon-btn icon-btn-danger ${confirmingDelete ? 'confirming' : ''}" onclick="requestDeleteLocalTask(${t.id})" title="${confirmingDelete ? 'Clique de novo para confirmar' : 'Excluir definitivamente'}">${confirmingDelete ? '✓' : '✕'}</button>` : ''}
     </div>`;
   return `
-    <div class="task" data-linked="${linked}" draggable="true" ondragstart="dragStart(event, ${t.id})" onclick="openTask(${t.id})" ${dropAttrs} style="background: linear-gradient(120deg, ${hexToRgba(cat.color, 0.10)}, transparent 65%), var(--surface);${pickerOpen ? ' position:relative; z-index:50;' : ''}">
+    <div class="task ${selected ? 'kanban-selected' : ''}" data-linked="${linked}" draggable="true" ondragstart="dragStart(event, ${t.id})" onclick="${clickAttr}" ${dropAttrs} style="background: linear-gradient(120deg, ${hexToRgba(cat.color, 0.10)}, transparent 65%), var(--surface);${pickerOpen ? ' position:relative; z-index:50;' : ''}">
       <div class="side-tag" style="background:${cat.color}; color:${catDim};">${cat.name}</div>
       <div class="task-body">
         <div class="title-row">
@@ -2687,6 +2728,7 @@ function taskCardHTML(t, opts = {}){
           ${rightControl}
         </div>
         <div class="title">${t.title}</div>
+        ${t.notes && t.notes.trim() ? `<div class="task-note-line" title="${escapeHtml(t.notes)}">${escapeHtml(t.notes)}</div>` : ''}
         ${showMoveDay ? `<div class="move-day-row"><span class="move-label">Dia pra fazer</span>${dayPickerHTML(t)}</div>` : ''}
         ${mismatch ? `<div class="due-badge">Entrega ${dueLabel(t)}</div>` : ''}
         <div class="meta">
@@ -2763,8 +2805,8 @@ function renderKanban(){
         `;
       }
       const cardFn = t => simplifiedMode
-        ? simplePillHTML(t, { dragCtx: id => `dropOnCardKanban(event, ${id}, '${status}')` })
-        : taskCardHTML(t, { dragCtx: id => `dropOnCardKanban(event, ${id}, '${status}')` });
+        ? simplePillHTML(t, { dragCtx: id => `dropOnCardKanban(event, ${id}, '${status}')`, selectable: true })
+        : taskCardHTML(t, { dragCtx: id => `dropOnCardKanban(event, ${id}, '${status}')`, selectable: true });
       const cards = items.map(cardFn).join('');
       return `
         <div class="column">
@@ -2848,7 +2890,34 @@ function hasMismatch(t){
 // -------- Drag and drop (só organiza dentro da Central, nunca muda a fonte) --------
 let draggedId = null;
 
+// Seleção múltipla no Kanban (Ctrl/Cmd + clique) pra mover várias tarefas de coluna de uma vez
+let kanbanSelected = new Set();
+
+function toggleKanbanSelect(id){
+  if (kanbanSelected.has(id)) kanbanSelected.delete(id); else kanbanSelected.add(id);
+  renderKanban();
+}
+function clearKanbanSelection(){
+  if (kanbanSelected.size){ kanbanSelected.clear(); renderKanban(); }
+}
+function handleTaskClick(event, id){
+  if (event.ctrlKey || event.metaKey){ event.preventDefault(); event.stopPropagation(); toggleKanbanSelect(id); return; }
+  if (kanbanSelected.size){ kanbanSelected.clear(); renderKanban(); }
+  openTask(id);
+}
+function handlePillClick(event, id){
+  if (event.ctrlKey || event.metaKey){ event.preventDefault(); event.stopPropagation(); toggleKanbanSelect(id); return; }
+  if (kanbanSelected.size) kanbanSelected.clear();
+  toggleSimplifiedExpand(id);
+}
+// Ids que vão junto num arraste do Kanban (a seleção, se a arrastada faz parte dela; senão só ela)
+function kanbanDragIds(){
+  return (kanbanSelected.size && kanbanSelected.has(draggedId)) ? [...kanbanSelected] : [draggedId];
+}
+
 function dragStart(e, id){
+  // Arrastar uma tarefa fora da seleção descarta a seleção antiga (arrasta só ela)
+  if (kanbanSelected.size && !kanbanSelected.has(id)) kanbanSelected.clear();
   draggedId = id;
   e.dataTransfer.effectAllowed = 'move';
   try { e.dataTransfer.setData('text/plain', String(id)); } catch(err) {}
@@ -2866,18 +2935,21 @@ function moveInArray(id, beforeId){
 
 function dropOnCardKanban(e, targetId, status){
   e.preventDefault(); e.stopPropagation();
-  if (draggedId == null || draggedId === targetId) return;
-  const t = TASKS.find(x => x.id === draggedId);
-  if (t) t.status = status;
-  moveInArray(draggedId, targetId);
+  if (draggedId == null) return;
+  const ids = kanbanDragIds();
+  if (ids.length === 1 && ids[0] === targetId) return;
+  ids.forEach(id => { const t = TASKS.find(x => x.id === id); if (t){ t.status = status; t.statusUserSet = true; } });
+  ids.filter(id => id !== targetId).forEach(id => moveInArray(id, targetId));
+  kanbanSelected.clear();
   draggedId = null; renderAll();
 }
 function dropOnColumnKanban(e, status){
   e.preventDefault();
   if (draggedId == null) return;
-  const t = TASKS.find(x => x.id === draggedId);
-  if (t) t.status = status;
-  moveInArray(draggedId, null);
+  const ids = kanbanDragIds();
+  ids.forEach(id => { const t = TASKS.find(x => x.id === id); if (t){ t.status = status; t.statusUserSet = true; } });
+  ids.forEach(id => moveInArray(id, null));
+  kanbanSelected.clear();
   draggedId = null; renderAll();
 }
 
@@ -3193,14 +3265,16 @@ function simplePillHoverEnd(el){
 }
 
 function simplePillHTML(t, opts = {}){
-  const { dragCtx = null } = opts;
+  const { dragCtx = null, selectable = false } = opts;
   const cat = categoryById(t.source);
   const dateColor = darkenHexColor(cat.color, 0.4);
   const expanded = simplifiedExpandedId === t.id;
+  const selected = selectable && kanbanSelected.has(t.id);
+  const clickAttr = selectable ? `handlePillClick(event, ${t.id})` : `toggleSimplifiedExpand(${t.id})`;
   const dropAttrs = dragCtx ? `ondragover="event.preventDefault()" ondrop="${dragCtx(t.id)}"` : '';
   return `
     <div>
-      <div class="simple-pill" draggable="true" ondragstart="dragStart(event, ${t.id})" ${dropAttrs} style="background:${cat.color};" onclick="toggleSimplifiedExpand(${t.id})">
+      <div class="simple-pill ${selected ? 'kanban-selected' : ''}" draggable="true" ondragstart="dragStart(event, ${t.id})" ${dropAttrs} style="background:${cat.color};" onclick="${clickAttr}">
         <div class="simple-pill-title-wrap" onmouseenter="simplePillHoverStart(this)" onmouseleave="simplePillHoverEnd(this)">
           <span class="simple-pill-title">${escapeHtml(t.title)}</span>
         </div>
@@ -3490,7 +3564,96 @@ function renderAll(){
   renderChecklists();
   renderNotas();
   renderCalendarios();
+  commitHistory();
 }
+
+// -------- Desfazer (Ctrl+Z) — guarda snapshots do estado a cada mudança e volta atrás --------
+let historyStack = [];
+let historyBase = null;       // JSON do último estado conhecido
+const HISTORY_LIMIT = 80;
+let restoringHistory = false;
+
+function historySnapshotString(){
+  return JSON.stringify({
+    TASKS, KANBAN_COLUMNS, SUBCATEGORIES, CATEGORIES, CHECKLISTS, NOTES, API_CONNECTIONS, DELETED_LOG,
+    nextTaskId, nextChecklistId, nextChecklistItemId, nextNoteId,
+  });
+}
+
+// Chamado no fim de cada renderAll: se algo do estado mudou, empilha o estado anterior.
+function commitHistory(){
+  if (restoringHistory) return;
+  const now = historySnapshotString();
+  if (historyBase === null){ historyBase = now; return; }
+  if (now !== historyBase){
+    historyStack.push(historyBase);
+    if (historyStack.length > HISTORY_LIMIT) historyStack.shift();
+    historyBase = now;
+  }
+}
+
+// Descarta o histórico (ex: depois de carregar do Drive/importar — não faz sentido "desfazer" isso).
+function resetHistory(){
+  historyStack = [];
+  historyBase = historySnapshotString();
+}
+
+function undoLastAction(){
+  if (!historyStack.length){ showToast('Nada pra desfazer'); return; }
+  const prev = historyStack.pop();
+  let data;
+  try { data = JSON.parse(prev); } catch(e){ return; }
+  restoringHistory = true;
+  TASKS.length = 0; TASKS.push(...(data.TASKS || []));
+  KANBAN_COLUMNS = data.KANBAN_COLUMNS || KANBAN_COLUMNS;
+  SUBCATEGORIES = data.SUBCATEGORIES || SUBCATEGORIES;
+  CATEGORIES = data.CATEGORIES || CATEGORIES;
+  CHECKLISTS = data.CHECKLISTS || CHECKLISTS;
+  NOTES = data.NOTES || NOTES;
+  API_CONNECTIONS = data.API_CONNECTIONS || API_CONNECTIONS;
+  DELETED_LOG = data.DELETED_LOG || DELETED_LOG;
+  if (data.nextTaskId != null) nextTaskId = data.nextTaskId;
+  if (data.nextChecklistId != null) nextChecklistId = data.nextChecklistId;
+  if (data.nextChecklistItemId != null) nextChecklistItemId = data.nextChecklistItemId;
+  if (data.nextNoteId != null) nextNoteId = data.nextNoteId;
+  // Mantém só filtros de ids que ainda existem
+  activeSources = new Set(CATEGORIES.map(c => c.id));
+  activeApiConnections = new Set(['__local__', ...API_CONNECTIONS.map(c => c.id)]);
+  kanbanSelected.clear();
+  renderCategoryFilters();
+  renderSubcatRow();
+  renderApiConnRow();
+  renderAll();
+  historyBase = historySnapshotString();
+  restoringHistory = false;
+  showToast('Ação desfeita');
+}
+
+// -------- Toast rápido (mensagem que some sozinha) --------
+let toastTimer = null;
+function showToast(msg){
+  let el = document.getElementById('app-toast');
+  if (!el){
+    el = document.createElement('div');
+    el.id = 'app-toast';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
+}
+
+window.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'z' || e.key === 'Z')){
+    const el = e.target;
+    const tag = (el && el.tagName || '').toLowerCase();
+    // Não sequestra o Ctrl+Z dentro de campos de texto (deixa o desfazer nativo do input).
+    if (tag === 'input' || tag === 'textarea' || (el && el.isContentEditable)) return;
+    e.preventDefault();
+    undoLastAction();
+  }
+});
 
 // -------- Calendários (Google Calendar — OAuth próprio, separado do Drive, múltiplas contas) --------
 // Cada conta conectada gera seu próprio token, só em memória (nunca salvo em disco/Drive/código).
@@ -4474,8 +4637,11 @@ async function syncAirtableConnection(conn){
 
     if (existing){
       existing.title = title;
-      existing.status = status;
-      existing.archived = archived;
+      // Não sobrescreve a coluna/arquivamento se o usuário moveu a tarefa manualmente aqui.
+      if (!existing.statusUserSet){
+        existing.status = status;
+        existing.archived = archived;
+      }
       // Não sobrescreve a subcategoria se o usuário marcou uma manualmente aqui no app.
       if (!existing.subcatUserSet) existing.subcat = mapping.subcat || null;
       existing.url = link;
@@ -4554,6 +4720,7 @@ function importStateFromJSON(jsonText){
   renderSubcatRow();
   renderApiConnRow();
   renderAll();
+  resetHistory(); // não faz sentido "desfazer" um carregamento inteiro do Drive/arquivo
 
   if (API_CONNECTIONS.length) syncAllApiConnections();
 }
