@@ -191,6 +191,8 @@
   }
 
   .chip.on{ color: var(--text); border-color: var(--dotcolor); background: var(--surface-2); }
+  .chip.drag-over{ border-color: var(--dotcolor); background: var(--dotcolor); color: #fff; transform: scale(1.06); box-shadow: 0 0 0 2px var(--dotcolor); }
+  .chip.drag-over .dot{ background: #fff; }
   .chip[data-source="trabalho"]{ --dotcolor: var(--trabalho); }
   .chip[data-source="pessoal"]{ --dotcolor: var(--pessoal); }
   .chip[data-source="freela"]{ --dotcolor: var(--freela); }
@@ -262,11 +264,14 @@
     justify-content:center;
     width: 18px;
     height: 18px;
+    padding: 0;
     border-radius: 50%;
     flex-shrink: 0;
   }
   .origin-badge.local{ background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
   .origin-badge.remote{ background: var(--freela-dim); color: var(--freela); border: 1px solid var(--freela); }
+  .origin-badge.clickable{ cursor: pointer; transition: transform .1s ease, box-shadow .1s ease; }
+  .origin-badge.clickable:hover{ transform: scale(1.15); box-shadow: 0 0 0 2px var(--freela); }
 
   /* ---------- Subcategory filter row ---------- */
   .subcat-row{
@@ -434,6 +439,7 @@
   .simple-pill.kanban-selected{ outline: 2px solid #fff; outline-offset: 2px; }
 
   .modal-body > input[type="text"],
+  .modal-body > input[type="date"],
   .modal-body > select{
     font-family: 'IBM Plex Mono', monospace;
     font-size: 12.5px;
@@ -444,7 +450,27 @@
     padding: 9px 10px;
     width: 100%;
   }
+  .modal-body > input[type="date"]{ color-scheme: dark; }
   .modal-body > input[type="text"]::placeholder{ color: var(--muted-2); }
+
+  /* editor "Alteração no destino API" (laranja) */
+  .api-edit-panel{ border-top: 3px solid var(--mismatch); }
+  .api-edit-dest{
+    font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 14px;
+    color: var(--text); background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 12px; margin: 2px 0 4px;
+  }
+  .api-edit-label{
+    font-size: 11px; color: var(--muted-2); text-transform: uppercase;
+    letter-spacing: .04em; margin-top: 8px;
+  }
+  .api-edit-fieldname{
+    display: inline-block; margin-left: 6px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; text-transform: none;
+    letter-spacing: 0; color: var(--mismatch);
+    background: var(--mismatch-dim); border: 1px solid var(--mismatch);
+    border-radius: 5px; padding: 1px 6px;
+  }
 
   .subcat-edit-row{
     display:flex;
@@ -1538,6 +1564,7 @@
   <div id="drive-overlay" style="display:none;"></div>
   <div id="apis-overlay" style="display:none;"></div>
   <div id="open-link-overlay" style="display:none;"></div>
+  <div id="api-edit-overlay" style="display:none;"></div>
   <div id="app-dialog-overlay"></div>
 
 </div>
@@ -1743,7 +1770,9 @@ function renderCategoryFilters(){
   if (!el) return;
   el.innerHTML = `
     ${CATEGORIES.map(c => `
-      <div class="chip ${activeSources.has(c.id) ? 'on' : ''}" style="--dotcolor:${c.color}" onclick="toggleCategoryFilter('${c.id}')">
+      <div class="chip ${activeSources.has(c.id) ? 'on' : ''}" style="--dotcolor:${c.color}" onclick="toggleCategoryFilter('${c.id}')"
+        ondragover="event.preventDefault(); this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')"
+        ondrop="this.classList.remove('drag-over'); dropOnCategoryChip(event, '${c.id}')">
         <span class="dot"></span>${c.name}
       </div>
     `).join('')}
@@ -1870,7 +1899,9 @@ function renderSubcatRow(){
     ${subcatRowCollapsed
       ? `<span class="row-collapsed-count">${SUBCATEGORIES.length}</span>`
       : `${SUBCATEGORIES.map(s => `
-          <div class="chip subcat-chip ${activeSubcats.has(s.id) ? 'on' : ''}" style="--dotcolor:${s.color}" onclick="toggleSubcatFilter('${s.id}')">
+          <div class="chip subcat-chip ${activeSubcats.has(s.id) ? 'on' : ''}" style="--dotcolor:${s.color}" onclick="toggleSubcatFilter('${s.id}')"
+            ondragover="event.preventDefault(); this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')"
+            ondrop="this.classList.remove('drag-over'); dropOnSubcatChip(event, '${s.id}')">
             <span class="dot"></span>${s.name}
           </div>
         `).join('')}
@@ -2162,6 +2193,194 @@ async function notionCreatePage(conn, title, ymd){
   }
   const data = await resp.json();
   return { id: data.id, url: data.url || null };
+}
+
+// -------- Editar status/data de uma tarefa direto no destino da API (popup laranja) --------
+let apiEditTaskId = null;
+
+function dueToYmd(due){
+  if (!due) return '';
+  const parts = String(due).split('.');
+  if (parts.length < 2) return '';
+  return `${REF_YEAR}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+}
+function ymdToHuman(ymd){
+  const [y,m,d] = String(ymd).split('-');
+  if (!y || !m || !d) return ymd;
+  return `${d}/${m}/${y}`;
+}
+
+function editApiTaskDestination(taskId){
+  const t = TASKS.find(x => x.id === taskId);
+  if (!t || !t.apiConnectionId) return;
+  const conn = API_CONNECTIONS.find(c => c.id === t.apiConnectionId);
+  if (!conn){ appAlert('A conexão dessa tarefa não foi encontrada.'); return; }
+  apiEditTaskId = taskId;
+  renderApiEditModal();
+}
+
+function closeApiEditModal(){
+  apiEditTaskId = null;
+  const el = document.getElementById('api-edit-overlay');
+  el.style.display = 'none';
+  el.innerHTML = '';
+}
+
+function renderApiEditModal(){
+  const el = document.getElementById('api-edit-overlay');
+  const t = TASKS.find(x => x.id === apiEditTaskId);
+  if (!t){ closeApiEditModal(); return; }
+  const conn = API_CONNECTIONS.find(c => c.id === t.apiConnectionId);
+  if (!conn){ closeApiEditModal(); return; }
+  const isAirtable = conn.type === 'airtable';
+  const titleFieldName = isAirtable ? conn.titleField : conn.titleProp;
+  const dateFieldName = isAirtable ? conn.dateField : conn.dateProp;
+  const statusFieldName = isAirtable ? conn.statusField : null;
+  const statusChoices = (isAirtable && conn.statusField && conn.statusMap) ? Object.keys(conn.statusMap) : [];
+  let currentChoice = '';
+  if (statusChoices.length){
+    currentChoice = statusChoices.find(k => (conn.statusMap[k] && conn.statusMap[k].bucket) === t.status) || '';
+  }
+  const dueYmd = dueToYmd(t.due);
+  const fieldTag = (name) => name ? `<span class="api-edit-fieldname">${escapeHtml(name)}</span>` : '';
+
+  const titleBlock = titleFieldName ? `
+    <div class="api-edit-label">Título ${fieldTag(titleFieldName)}</div>
+    <input type="text" id="api-edit-title" value="${escapeHtml(t.title)}">` : '';
+
+  const statusBlock = statusChoices.length ? `
+    <div class="api-edit-label">Status ${fieldTag(statusFieldName)}</div>
+    <select id="api-edit-status">
+      <option value="">(manter atual)</option>
+      ${statusChoices.map(k => `<option value="${escapeHtml(k)}" ${k === currentChoice ? 'selected' : ''}>${escapeHtml(k)}</option>`).join('')}
+    </select>`
+    : `<div class="nt-hint">Essa conexão não tem um campo de status mapeado.</div>`;
+
+  const dateBlock = dateFieldName ? `
+    <div class="api-edit-label">Data de entrega ${fieldTag(dateFieldName)}</div>
+    <input type="date" id="api-edit-date" value="${dueYmd}">` : '';
+
+  el.style.display = 'flex';
+  el.innerHTML = `
+    <div class="modal-backdrop" onclick="closeApiEditModal()">
+      <div class="modal-panel api-edit-panel" onclick="event.stopPropagation()">
+        <div class="modal-head">
+          <h3>Alteração no destino API</h3>
+          <button class="modal-close" onclick="closeApiEditModal()">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="app-dialog-api-badge">⚠ Mexe direto na API</div>
+          <div class="api-edit-dest">${escapeHtml(conn.label)} · ${connTypeLabel(conn)}</div>
+          <div class="nt-hint" style="margin-bottom:2px;">Campos dessa conexão que dá pra alterar no destino:</div>
+          ${titleBlock}
+          ${statusBlock}
+          ${dateBlock}
+          <button class="modal-add-btn connected" style="margin-top:14px; width:100%; justify-content:center;" onclick="submitApiTaskEdit()">Revisar e enviar</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function submitApiTaskEdit(){
+  const t = TASKS.find(x => x.id === apiEditTaskId);
+  if (!t){ closeApiEditModal(); return; }
+  const conn = API_CONNECTIONS.find(c => c.id === t.apiConnectionId);
+  if (!conn){ closeApiEditModal(); return; }
+  const titleInput = document.getElementById('api-edit-title');
+  const chosenTitle = titleInput ? titleInput.value.trim() : '';
+  const statusSel = document.getElementById('api-edit-status');
+  const chosenStatus = statusSel ? statusSel.value : '';
+  const dateInput = document.getElementById('api-edit-date');
+  const chosenDate = dateInput ? dateInput.value : '';
+  const currentYmd = dueToYmd(t.due);
+  // Status que já está valendo (o pré-selecionado) — pra não contar como mudança se não mexeu.
+  const currentChoice = (conn.type === 'airtable' && conn.statusMap)
+    ? (Object.keys(conn.statusMap).find(k => (conn.statusMap[k] && conn.statusMap[k].bucket) === t.status) || '')
+    : '';
+
+  const changes = [];
+  if (titleInput && chosenTitle && chosenTitle !== t.title) changes.push({ type: 'title', value: chosenTitle });
+  if (chosenStatus && chosenStatus !== currentChoice) changes.push({ type: 'status', value: chosenStatus });
+  if (chosenDate && chosenDate !== currentYmd) changes.push({ type: 'date', value: chosenDate });
+  if (!changes.length){ closeApiEditModal(); showToast('Nada pra alterar'); return; }
+
+  const lines = changes.map(c => {
+    if (c.type === 'title') return `Título → <b>${escapeHtml(c.value)}</b>`;
+    if (c.type === 'status') return `Status → <b>${escapeHtml(c.value)}</b>`;
+    return `Data de entrega → <b>${escapeHtml(ymdToHuman(c.value))}</b>`;
+  });
+  lines.push('Nenhum outro campo é tocado.');
+  const ok = await apiActionConfirm({ destination: `${conn.label} · ${connTypeLabel(conn)}`, lines });
+  if (!ok) return;
+
+  const titleChange = changes.find(c => c.type === 'title');
+  const statusChange = changes.find(c => c.type === 'status');
+  const dateChange = changes.find(c => c.type === 'date');
+  try {
+    if (conn.type === 'airtable'){
+      const fields = {};
+      if (titleChange && conn.titleField) fields[conn.titleField] = titleChange.value;
+      if (statusChange && conn.statusField) fields[conn.statusField] = statusChange.value;
+      if (dateChange && conn.dateField) fields[conn.dateField] = dateChange.value;
+      await airtableUpdateRecord(conn, t.airtableRecordId, fields);
+    } else {
+      const properties = {};
+      if (titleChange && conn.titleProp) properties[conn.titleProp] = { title: [{ text: { content: titleChange.value } }] };
+      if (dateChange && conn.dateProp) properties[conn.dateProp] = { date: { start: dateChange.value } };
+      await notionUpdatePage(conn, t.notionPageId, properties);
+    }
+  } catch (e){
+    appAlert('Não consegui alterar na API: ' + e.message + '\n\nO token precisa ter permissão de escrita.', 'Erro na API');
+    return;
+  }
+
+  if (titleChange) t.title = titleChange.value;
+
+  // Reflete a mudança aqui também
+  if (statusChange && conn.type === 'airtable' && conn.statusMap && conn.statusMap[statusChange.value]){
+    const mapping = conn.statusMap[statusChange.value];
+    if (mapping.bucket !== 'skip'){
+      const archived = mapping.bucket === 'archived';
+      const rawBucket = archived ? DEFAULT_ARRIVAL_STATUS : mapping.bucket;
+      t.status = kanbanColumnById(rawBucket) ? rawBucket : (KANBAN_COLUMNS[0] ? KANBAN_COLUMNS[0].id : DEFAULT_ARRIVAL_STATUS);
+      t.archived = archived;
+      t.statusUserSet = false; // agora local e fonte batem de novo
+    }
+  }
+  if (dateChange){
+    const di = airtableDateToDue(dateChange.value);
+    if (di){ t.due = di.due; t.planDay = di.planDay; t.planMonthDay = di.planMonthDay; t.planMonth = di.planMonth; t.planYear = di.planYear; }
+  }
+  closeApiEditModal();
+  renderAll();
+  showToast('Alterado no destino ✓');
+}
+
+async function airtableUpdateRecord(conn, recordId, fields){
+  const resp = await fetch(`https://api.airtable.com/v0/${conn.baseId}/${conn.tableId}/${recordId}`, {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer ' + conn.token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields, typecast: true }),
+  });
+  if (!resp.ok){
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error?.message || ('HTTP ' + resp.status));
+  }
+  return await resp.json();
+}
+
+async function notionUpdatePage(conn, pageId, properties){
+  const resp = await fetch(`${conn.workerUrl}/v1/pages/${pageId}`, {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer ' + conn.token, 'Notion-Version': NOTION_VERSION, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ properties }),
+  });
+  if (!resp.ok){
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.message || ('HTTP ' + resp.status));
+  }
+  return await resp.json();
 }
 
 let showArchivedLocal = false;
@@ -2695,7 +2914,10 @@ const ICON_ORIGIN_REMOTE = `<svg viewBox="0 0 24 24" width="10" height="10" fill
 
 function originBadgeHTML(t){
   const isLocal = !t.apiConnectionId;
-  return `<span class="origin-badge ${isLocal ? 'local' : 'remote'}" title="${isLocal ? 'Tarefa local — criada e editável aqui no app' : 'Tarefa remota — sincronizada de uma API, título e data de entrega não editáveis aqui'}">${isLocal ? ICON_ORIGIN_LOCAL : ICON_ORIGIN_REMOTE}</span>`;
+  if (isLocal){
+    return `<span class="origin-badge local" title="Tarefa local — criada e editável aqui no app">${ICON_ORIGIN_LOCAL}</span>`;
+  }
+  return `<button type="button" class="origin-badge remote clickable" title="Alterar status e data de entrega no destino da API" onclick="event.stopPropagation(); editApiTaskDestination(${t.id})">${ICON_ORIGIN_REMOTE}</button>`;
 }
 
 function taskCardHTML(t, opts = {}){
@@ -2839,8 +3061,8 @@ function renderSemana(){
       const items = visible.filter(t => t.planDay === i);
       const isToday = i === TODAY_INDEX;
       const cardFn = t => simplifiedMode
-        ? simplePillHTML(t, { dragCtx: id => `dropOnCardWeek(event, ${id}, ${i})` })
-        : taskCardHTML(t, { showMismatch: true, dragCtx: id => `dropOnCardWeek(event, ${id}, ${i})` });
+        ? simplePillHTML(t, { dragCtx: id => `dropOnCardWeek(event, ${id}, ${i})`, selectable: true })
+        : taskCardHTML(t, { showMismatch: true, dragCtx: id => `dropOnCardWeek(event, ${id}, ${i})`, selectable: true });
       const cards = items.map(cardFn).join('');
       return `
         <div class="day ${isToday ? 'today' : ''}" ondragover="event.preventDefault()" ondrop="dropOnColumnWeek(event, ${i})">
@@ -2893,16 +3115,21 @@ let draggedId = null;
 // Seleção múltipla no Kanban (Ctrl/Cmd + clique) pra mover várias tarefas de coluna de uma vez
 let kanbanSelected = new Set();
 
+// Redesenha só as views que mostram a seleção (Kanban e Semana) — não mexe no estado, então não vai pro histórico.
+function renderSelectableViews(){
+  renderKanban();
+  renderSemana();
+}
 function toggleKanbanSelect(id){
   if (kanbanSelected.has(id)) kanbanSelected.delete(id); else kanbanSelected.add(id);
-  renderKanban();
+  renderSelectableViews();
 }
 function clearKanbanSelection(){
-  if (kanbanSelected.size){ kanbanSelected.clear(); renderKanban(); }
+  if (kanbanSelected.size){ kanbanSelected.clear(); renderSelectableViews(); }
 }
 function handleTaskClick(event, id){
   if (event.ctrlKey || event.metaKey){ event.preventDefault(); event.stopPropagation(); toggleKanbanSelect(id); return; }
-  if (kanbanSelected.size){ kanbanSelected.clear(); renderKanban(); }
+  if (kanbanSelected.size){ kanbanSelected.clear(); renderSelectableViews(); }
   openTask(id);
 }
 function handlePillClick(event, id){
@@ -2955,19 +3182,42 @@ function dropOnColumnKanban(e, status){
 
 function dropOnCardWeek(e, targetId, dayIdx){
   e.preventDefault(); e.stopPropagation();
-  if (draggedId == null || draggedId === targetId) return;
-  const t = TASKS.find(x => x.id === draggedId);
-  if (t) t.planDay = dayIdx;
-  moveInArray(draggedId, targetId);
+  if (draggedId == null) return;
+  const ids = kanbanDragIds();
+  if (ids.length === 1 && ids[0] === targetId) return;
+  ids.forEach(id => { const t = TASKS.find(x => x.id === id); if (t) t.planDay = dayIdx; });
+  ids.filter(id => id !== targetId).forEach(id => moveInArray(id, targetId));
+  kanbanSelected.clear();
   draggedId = null; renderAll();
 }
 function dropOnColumnWeek(e, dayIdx){
   e.preventDefault();
   if (draggedId == null) return;
-  const t = TASKS.find(x => x.id === draggedId);
-  if (t) t.planDay = dayIdx;
-  moveInArray(draggedId, null);
+  const ids = kanbanDragIds();
+  ids.forEach(id => { const t = TASKS.find(x => x.id === id); if (t) t.planDay = dayIdx; });
+  ids.forEach(id => moveInArray(id, null));
+  kanbanSelected.clear();
   draggedId = null; renderAll();
+}
+
+// Arrastar tarefa(s) selecionada(s) pra cima de um chip de categoria/subcategoria = reclassificar
+function dropOnCategoryChip(e, catId){
+  e.preventDefault(); e.stopPropagation();
+  if (draggedId == null) return;
+  const ids = kanbanDragIds();
+  ids.forEach(id => { const t = TASKS.find(x => x.id === id); if (t) t.source = catId; });
+  kanbanSelected.clear(); draggedId = null; renderAll();
+  const name = categoryById(catId).name;
+  showToast(ids.length > 1 ? `${ids.length} tarefas → ${name}` : `Categoria: ${name}`);
+}
+function dropOnSubcatChip(e, subcatId){
+  e.preventDefault(); e.stopPropagation();
+  if (draggedId == null) return;
+  const ids = kanbanDragIds();
+  ids.forEach(id => { const t = TASKS.find(x => x.id === id); if (t){ t.subcat = subcatId; t.subcatUserSet = true; } });
+  kanbanSelected.clear(); draggedId = null; renderAll();
+  const sub = SUBCATEGORIES.find(s => s.id === subcatId);
+  showToast(ids.length > 1 ? `${ids.length} tarefas → ${sub ? sub.name : ''}` : `Subcategoria: ${sub ? sub.name : ''}`);
 }
 
 function dropOnCellMonthGrid(e, dayNum){
@@ -3159,6 +3409,18 @@ function clearTaskSelection(){
   renderLista();
 }
 
+function allVisibleSelected(){
+  const visible = visibleTasks();
+  return visible.length > 0 && visible.every(t => selectedTaskIds.has(t.id));
+}
+
+function toggleSelectAllVisible(){
+  const visible = visibleTasks();
+  if (allVisibleSelected()) selectedTaskIds.clear();
+  else visible.forEach(t => selectedTaskIds.add(t.id));
+  renderLista();
+}
+
 function bulkSetCategory(catId){
   if (!catId) return;
   TASKS.forEach(t => { if (selectedTaskIds.has(t.id)) t.source = catId; });
@@ -3169,6 +3431,21 @@ function bulkSetSubcat(value){
   if (!value) return;
   const subcatId = value === '__none__' ? null : value;
   TASKS.forEach(t => { if (selectedTaskIds.has(t.id)){ t.subcat = subcatId; t.subcatUserSet = true; } });
+  renderAll();
+}
+
+function bulkSetPlanDay(value){
+  if (value === '') return;
+  const day = parseInt(value, 10);
+  const planDay = (new Date(REF_YEAR, REF_MONTH, day).getDay() + 6) % 7;
+  TASKS.forEach(t => {
+    if (selectedTaskIds.has(t.id)){
+      t.planMonthDay = day;
+      t.planMonth = REF_MONTH;
+      t.planYear = REF_YEAR;
+      t.planDay = planDay;
+    }
+  });
   renderAll();
 }
 
@@ -3191,6 +3468,10 @@ function bulkActionBarHTML(){
         <option value="">Mudar subcategoria...</option>
         <option value="__none__">— sem subcategoria —</option>
         ${SUBCATEGORIES.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}
+      </select>
+      <select onchange="bulkSetPlanDay(this.value); this.value='';">
+        <option value="">Dia pra fazer...</option>
+        ${(() => { let o=''; const dim=daysInRefMonth(); for(let d=1;d<=dim;d++){ const dow=DOW_SHORT[(new Date(REF_YEAR,REF_MONTH,d).getDay()+6)%7]; o+=`<option value="${d}">${String(d).padStart(2,'0')} (${dow})</option>`; } return o; })()}
       </select>
       <button class="add-subcat-trigger" onclick="bulkArchive()">Arquivar selecionadas</button>
       <button class="add-subcat-trigger" onclick="clearTaskSelection()">Limpar seleção</button>
@@ -3220,6 +3501,7 @@ function renderLista(){
       <button class="sort-btn ${listSortBy === 'due' ? 'active' : ''}" onclick="setListSort('due')">Data de entrega</button>
       <button class="sort-btn ${listSortBy === 'planday' ? 'active' : ''}" onclick="setListSort('planday')">Dia pra fazer</button>
       <button class="sort-btn ${listSortBy === 'category' ? 'active' : ''}" onclick="setListSort('category')">Categoria</button>
+      <button class="sort-btn ${allVisibleSelected() ? 'active' : ''}" style="margin-left:auto;" onclick="toggleSelectAllVisible()">${allVisibleSelected() ? '☑ Desmarcar todas' : '☐ Selecionar todas'}</button>
     </div>
     ${bulkActionBarHTML()}
     ${visible.length ? visible.map(listRowHTML).join('') : '<div class="empty-hint">— nenhuma tarefa com esse filtro —</div>'}
@@ -3268,13 +3550,14 @@ function simplePillHTML(t, opts = {}){
   const { dragCtx = null, selectable = false } = opts;
   const cat = categoryById(t.source);
   const dateColor = darkenHexColor(cat.color, 0.4);
+  const pillBg = `linear-gradient(135deg, ${cat.color} 0%, ${darkenHexColor(cat.color, 0.32)} 100%)`;
   const expanded = simplifiedExpandedId === t.id;
   const selected = selectable && kanbanSelected.has(t.id);
   const clickAttr = selectable ? `handlePillClick(event, ${t.id})` : `toggleSimplifiedExpand(${t.id})`;
   const dropAttrs = dragCtx ? `ondragover="event.preventDefault()" ondrop="${dragCtx(t.id)}"` : '';
   return `
     <div>
-      <div class="simple-pill ${selected ? 'kanban-selected' : ''}" draggable="true" ondragstart="dragStart(event, ${t.id})" ${dropAttrs} style="background:${cat.color};" onclick="${clickAttr}">
+      <div class="simple-pill ${selected ? 'kanban-selected' : ''}" draggable="true" ondragstart="dragStart(event, ${t.id})" ${dropAttrs} style="background:${pillBg};" onclick="${clickAttr}">
         <div class="simple-pill-title-wrap" onmouseenter="simplePillHoverStart(this)" onmouseleave="simplePillHoverEnd(this)">
           <span class="simple-pill-title">${escapeHtml(t.title)}</span>
         </div>
