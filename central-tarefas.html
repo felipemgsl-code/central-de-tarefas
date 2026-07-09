@@ -286,6 +286,16 @@
     letter-spacing: 0.05em;
   }
 
+  .row-collapse{
+    background: none; border: none; color: var(--muted-2);
+    font-size: 11px; cursor: pointer; padding: 0 2px; line-height: 1; flex-shrink: 0;
+  }
+  .row-collapse:hover{ color: var(--text); }
+  .row-collapsed-count{
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted-2);
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 1px 8px;
+  }
+
   .chip.subcat-chip{ position: relative; padding-right: 24px; }
   .chip.subcat-chip .rm{
     position:absolute;
@@ -403,24 +413,18 @@
   }
   .simple-pill-date{
     flex-shrink: 0;
-    height: 100%;
+    height: 24px;
     min-width: 46px;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0 10px;
+    margin-right: 3px;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 10px;
     font-weight: 700;
     color: #fff;
-    border-radius: 0 15px 15px 0;
-  }
-  .simple-pill-caret{
-    flex-shrink: 0;
-    width: 14px;
-    text-align: center;
-    font-size: 8px;
-    color: rgba(255,255,255,0.75);
+    border-radius: 12px;
   }
   .simple-pill-expanded{ margin: -2px 0 8px; }
   .simple-pill-expanded .task{ margin-bottom: 0; cursor: default; }
@@ -486,6 +490,76 @@
     white-space: nowrap;
   }
   .modal-add-btn:hover{ border-color: var(--muted-2); }
+
+  /* espaço embaixo da busca pra ela não colar na faixa de subcategorias */
+  #search-row{ margin-bottom: 34px; }
+
+  /* ---------- Diálogos do próprio app (substituem alert/confirm/prompt do navegador) ---------- */
+  #app-dialog-overlay{ position: fixed; inset: 0; z-index: 700; display: none; align-items: center; justify-content: center; }
+  .app-dialog-backdrop{ display:flex; align-items:center; justify-content:center; }
+  .app-dialog-panel{
+    width: 400px; max-width: calc(100vw - 32px);
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 14px; padding: 20px 20px 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    border-top: 3px solid var(--freela);
+  }
+  .app-dialog-panel.danger{ border-top-color: var(--danger); }
+  .app-dialog-panel.api{ border-top-color: var(--mismatch); }
+  .app-dialog-title{
+    font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 16px;
+    color: var(--text); margin-bottom: 8px;
+  }
+  .app-dialog-msg{ font-size: 13px; color: var(--muted); line-height: 1.55; }
+  .app-dialog-msg b{ color: var(--text); }
+  .app-dialog-input{
+    width: 100%; margin-top: 12px;
+    background: var(--surface-2); border: 1px solid var(--line); color: var(--text);
+    border-radius: 6px; padding: 8px 10px; font-size: 13px;
+    font-family: 'Inter', sans-serif;
+  }
+  .app-dialog-input:focus{ outline: none; border-color: var(--freela); }
+  .app-dialog-actions{ display:flex; justify-content:flex-end; gap: 8px; margin-top: 18px; }
+  .app-dialog-btn{
+    font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 12.5px;
+    border-radius: 8px; padding: 8px 16px; cursor: pointer; border: 1px solid var(--line);
+  }
+  .app-dialog-btn.ghost{ background: var(--surface-2); color: var(--muted); }
+  .app-dialog-btn.ghost:hover{ color: var(--text); border-color: var(--muted-2); }
+  .app-dialog-btn.primary{ background: var(--freela); border-color: var(--freela); color: #fff; }
+  .app-dialog-btn.primary:hover{ filter: brightness(1.08); }
+  .app-dialog-panel.danger .app-dialog-btn.primary{ background: var(--danger); border-color: var(--danger); }
+  .app-dialog-panel.api .app-dialog-btn.primary{ background: var(--mismatch); border-color: var(--mismatch); color: #201400; }
+  .app-dialog-api-badge{
+    display:inline-flex; align-items:center; gap:6px;
+    background: var(--mismatch-dim); color: var(--mismatch);
+    border: 1px solid var(--mismatch); border-radius: 20px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; text-transform: uppercase;
+    letter-spacing: .04em; padding: 3px 10px; margin-bottom: 10px;
+  }
+  .app-dialog-dest{
+    font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 14px;
+    color: var(--text); background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 12px; margin: 6px 0 4px;
+  }
+  .app-dialog-list{ margin: 8px 0 0; padding-left: 18px; }
+  .app-dialog-list li{ font-size: 12.5px; color: var(--muted); margin-bottom: 3px; line-height: 1.45; }
+  .app-dialog-list li b{ color: var(--text); }
+
+  /* ---------- "Tarefa conectada" no modal de nova tarefa (roxinho) ---------- */
+  .nt-origin-toggle{ display:flex; gap: 8px; }
+  .nt-origin-opt{
+    flex: 1; text-align: center; cursor: pointer;
+    font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 12.5px;
+    background: var(--surface-2); border: 1px solid var(--line); color: var(--muted);
+    border-radius: 8px; padding: 9px 8px; user-select: none;
+  }
+  .nt-origin-opt.on{ color: var(--text); border-color: var(--muted-2); }
+  .nt-origin-opt.connected.on{ color: #fff; background: var(--freela-dim); border-color: var(--freela); }
+  .nt-origin-opt.connected .dot{ color: var(--freela); }
+  .nt-hint{ font-size: 11.5px; color: var(--muted-2); line-height: 1.5; }
+  .modal-add-btn.connected{ background: var(--freela); border-color: var(--freela); color: #fff; }
+  .modal-add-btn.connected:hover{ filter: brightness(1.08); border-color: var(--freela); }
 
   /* ---------- Subcategory assign select on cards ---------- */
   .subcat-select{
@@ -652,6 +726,45 @@
     border-radius: 10px;
     padding: 1px 8px;
   }
+
+  .column h2 .col-caret{
+    background: none; border: none; color: var(--muted-2);
+    font-size: 11px; cursor: pointer; padding: 0; line-height: 1; flex-shrink: 0;
+  }
+  .column h2 .col-caret:hover{ color: var(--text); }
+  .column h2 .col-title{ cursor: text; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .column h2 .col-tools{ display: inline-flex; gap: 4px; opacity: 0; transition: opacity .12s; flex-shrink: 0; }
+  .column:hover h2 .col-tools{ opacity: 1; }
+  .column h2 .col-tools button{
+    background: none; border: none; color: var(--muted-2);
+    font-size: 11px; cursor: pointer; padding: 0 2px; line-height: 1;
+  }
+  .column h2 .col-tools button:hover{ color: var(--text); }
+
+  .column.collapsed{
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 6px;
+    align-self: start;
+  }
+  .col-collapsed-inner{ display:flex; flex-direction:column; align-items:center; gap:10px; cursor:pointer; }
+  .col-collapsed-caret{ color: var(--muted-2); font-size: 11px; }
+  .col-collapsed-inner:hover .col-collapsed-caret{ color: var(--text); }
+  .col-collapsed-title{
+    writing-mode: vertical-rl; transform: rotate(180deg);
+    font-family: 'Space Grotesk', sans-serif; font-size: 12px; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+  }
+
+  .column.column-add{ display:flex; align-items:flex-start; }
+  .add-column-btn{
+    width: 100%;
+    font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 12px;
+    background: transparent; border: 1px dashed var(--line); color: var(--muted-2);
+    border-radius: 12px; padding: 12px 10px; cursor: pointer;
+  }
+  .add-column-btn:hover{ color: var(--text); border-color: var(--muted-2); }
 
   .column-body{ min-height: 40px; }
 
@@ -1111,7 +1224,7 @@
   }
 
   @media (max-width: 900px){
-    .kanban{ grid-template-columns: 1fr; }
+    .kanban{ grid-template-columns: 1fr !important; }
     .week{ grid-template-columns: repeat(4, 1fr); }
   }
   @media (max-width: 600px){
@@ -1386,6 +1499,7 @@
   <div id="drive-overlay" style="display:none;"></div>
   <div id="apis-overlay" style="display:none;"></div>
   <div id="open-link-overlay" style="display:none;"></div>
+  <div id="app-dialog-overlay"></div>
 
 </div>
 
@@ -1430,8 +1544,20 @@ function categoryById(id){
 
 const DOW = ["SEG","TER","QUA","QUI","SEX","SÁB","DOM"];
 const DOW_SHORT = ["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"];
-const STATUS_LABEL = { todo: "A Fazer", doing: "Fazendo", waiting: "Esperando Retorno" };
-const STATUS_ORDER = ["todo","doing","waiting"];
+// Colunas do Kanban — customizáveis (nome editável, dá pra adicionar/excluir e colapsar).
+// INBOX é a coluna onde chegam por padrão as tarefas vindas de API.
+let KANBAN_COLUMNS = [
+  { id: 'inbox', label: 'Inbox', collapsed: false },
+  { id: 'todo', label: 'A Fazer', collapsed: false },
+  { id: 'doing', label: 'Fazendo', collapsed: false },
+  { id: 'waiting', label: 'Esperando Retorno', collapsed: false },
+];
+const DEFAULT_ARRIVAL_STATUS = 'inbox'; // coluna padrão pra tarefas de API
+function kanbanColumnById(id){ return KANBAN_COLUMNS.find(c => c.id === id) || null; }
+function statusLabel(id){
+  const c = kanbanColumnById(id);
+  return c ? c.label : (id || 'Sem coluna');
+}
 const TODAY_INDEX = 2; // quarta-feira, só para exemplo visual
 
 let SUBCATEGORIES = [
@@ -1465,6 +1591,86 @@ function slugify(str){
   return str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
 }
 
+// -------- Di\u00e1logos internos do app (substituem alert/confirm/prompt do navegador) --------
+let appDialogResolve = null;
+
+function resolveAppDialog(result){
+  const el = document.getElementById('app-dialog-overlay');
+  if (el){ el.style.display = 'none'; el.innerHTML = ''; }
+  const r = appDialogResolve;
+  appDialogResolve = null;
+  if (r) r(result);
+}
+
+function appDialog(opts){
+  const { title = 'Aviso', message = '', messageHtml = null, kind = 'info',
+          okLabel = 'OK', cancelLabel = null, input = null } = opts || {};
+  // Se j\u00e1 tem um di\u00e1logo aberto, fecha ele antes (evita travar sem resposta).
+  if (appDialogResolve) resolveAppDialog(input ? null : false);
+  return new Promise(resolve => {
+    appDialogResolve = resolve;
+    const el = document.getElementById('app-dialog-overlay');
+    el.style.display = 'flex';
+    const msg = messageHtml != null ? messageHtml : escapeHtml(String(message));
+    const inputHtml = input
+      ? `<input type="text" id="app-dialog-input" class="app-dialog-input" value="${escapeHtml(input.value || '')}" placeholder="${escapeHtml(input.placeholder || '')}">`
+      : '';
+    const cancelHtml = cancelLabel ? `<button class="app-dialog-btn ghost" data-act="cancel">${escapeHtml(cancelLabel)}</button>` : '';
+    el.innerHTML = `
+      <div class="modal-backdrop app-dialog-backdrop">
+        <div class="app-dialog-panel ${kind === 'api' ? 'api' : ''} ${kind === 'danger' ? 'danger' : ''}" onclick="event.stopPropagation()">
+          <div class="app-dialog-title">${escapeHtml(title)}</div>
+          <div class="app-dialog-msg">${msg}</div>
+          ${inputHtml}
+          <div class="app-dialog-actions">
+            ${cancelHtml}
+            <button class="app-dialog-btn primary" data-act="ok">${escapeHtml(okLabel)}</button>
+          </div>
+        </div>
+      </div>`;
+    const okBtn = el.querySelector('[data-act="ok"]');
+    const cancelBtn = el.querySelector('[data-act="cancel"]');
+    const inp = el.querySelector('#app-dialog-input');
+    const finish = (val) => resolveAppDialog(val);
+    okBtn.onclick = () => finish(input ? (inp ? inp.value : '') : true);
+    if (cancelBtn) cancelBtn.onclick = () => finish(input ? null : false);
+    el.querySelector('.app-dialog-backdrop').onclick = () => finish(input ? null : (cancelLabel ? false : true));
+    if (inp){
+      inp.focus(); inp.select();
+      inp.onkeydown = (e) => {
+        if (e.key === 'Enter'){ e.preventDefault(); finish(inp.value); }
+        else if (e.key === 'Escape'){ e.preventDefault(); finish(null); }
+      };
+    } else {
+      okBtn.focus();
+    }
+  });
+}
+
+function appAlert(message, title){
+  return appDialog({ title: title || 'Aviso', message, okLabel: 'OK' });
+}
+function appConfirm(message, o = {}){
+  return appDialog({ title: o.title || 'Confirmar', message, kind: o.kind || 'info',
+                     okLabel: o.okLabel || 'Confirmar', cancelLabel: o.cancelLabel || 'Cancelar' });
+}
+function appPrompt(message, defaultValue = '', o = {}){
+  return appDialog({ title: o.title || 'Editar', message,
+                     input: { value: defaultValue, placeholder: o.placeholder || '' },
+                     okLabel: o.okLabel || 'Salvar', cancelLabel: o.cancelLabel || 'Cancelar' });
+}
+
+// Popup LARANJA \u2014 toda a\u00e7\u00e3o que vai mexer num destino de API passa por aqui antes.
+function apiActionConfirm({ destination, lines }){
+  const body = `
+    <div class="app-dialog-api-badge">\u26a0 A\u00e7\u00e3o em API externa</div>
+    <div>Essa a\u00e7\u00e3o vai <b>alterar o destino conectado</b>:</div>
+    <div class="app-dialog-dest">${escapeHtml(destination)}</div>
+    <ul class="app-dialog-list">${(lines || []).map(l => `<li>${l}</li>`).join('')}</ul>`;
+  return appDialog({ title: 'Confirmar a\u00e7\u00e3o na API', messageHtml: body, kind: 'api',
+                     okLabel: 'Confirmar e enviar', cancelLabel: 'Cancelar' });
+}
+
 function deleteSubcategory(id){
   const removed = SUBCATEGORIES.find(s => s.id === id);
   if (removed) logDeletion('subcategoria', removed);
@@ -1484,7 +1690,7 @@ function toggleSubcatFilter(id){
 
 function assignSubcat(taskId, subcatId){
   const t = TASKS.find(x => x.id === taskId);
-  if (t) t.subcat = subcatId || null;
+  if (t){ t.subcat = subcatId || null; t.subcatUserSet = true; }
   renderAll();
 }
 
@@ -1601,16 +1807,36 @@ function renderCategoryManager(){
   `;
 }
 
+// Colapsos das faixas de filtro — preferência de exibição (não é segredo), salva no localStorage
+let subcatRowCollapsed = localStorage.getItem('ct_subcatCollapsed') === '1';
+let apiRowCollapsed = localStorage.getItem('ct_apiCollapsed') === '1';
+
+function toggleSubcatRowCollapsed(){
+  subcatRowCollapsed = !subcatRowCollapsed;
+  localStorage.setItem('ct_subcatCollapsed', subcatRowCollapsed ? '1' : '0');
+  renderSubcatRow();
+}
+function toggleApiRowCollapsed(){
+  apiRowCollapsed = !apiRowCollapsed;
+  localStorage.setItem('ct_apiCollapsed', apiRowCollapsed ? '1' : '0');
+  renderApiConnRow();
+}
+
 function renderSubcatRow(){
   const el = document.getElementById('subcat-row');
+  const caret = subcatRowCollapsed ? '▸' : '▾';
   el.innerHTML = `
-    <span class="label">Subcategorias</span>
-    ${SUBCATEGORIES.map(s => `
-      <div class="chip subcat-chip ${activeSubcats.has(s.id) ? 'on' : ''}" style="--dotcolor:${s.color}" onclick="toggleSubcatFilter('${s.id}')">
-        <span class="dot"></span>${s.name}
-      </div>
-    `).join('')}
-    <button class="add-subcat-trigger" onclick="openSubcatManager()">+ Adicionar</button>
+    <button class="row-collapse" onclick="toggleSubcatRowCollapsed()" title="${subcatRowCollapsed ? 'Expandir' : 'Minimizar'}">${caret}</button>
+    <span class="label" onclick="toggleSubcatRowCollapsed()" style="cursor:pointer;">Subcategorias</span>
+    ${subcatRowCollapsed
+      ? `<span class="row-collapsed-count">${SUBCATEGORIES.length}</span>`
+      : `${SUBCATEGORIES.map(s => `
+          <div class="chip subcat-chip ${activeSubcats.has(s.id) ? 'on' : ''}" style="--dotcolor:${s.color}" onclick="toggleSubcatFilter('${s.id}')">
+            <span class="dot"></span>${s.name}
+          </div>
+        `).join('')}
+        <button class="add-subcat-trigger" onclick="openSubcatManager()">+ Adicionar</button>`
+    }
   `;
 }
 
@@ -1693,11 +1919,17 @@ function renderSubcatManager(){
   `;
 }
 
-// ---- Criar tarefa local ----
+// ---- Criar tarefa (local ou conectada a uma API) ----
 let newTaskModalOpen = false;
+let newTaskMode = 'local';   // 'local' | 'connected'
+let newTaskConnId = null;    // id da API escolhida quando conectada
+let newTaskDraft = { title: '', day: REF_TODAY_DAY, category: null };
 
 function openNewTaskModal(){
   newTaskModalOpen = true;
+  newTaskMode = 'local';
+  newTaskConnId = API_CONNECTIONS[0] ? API_CONNECTIONS[0].id : null;
+  newTaskDraft = { title: '', day: REF_TODAY_DAY, category: CATEGORIES[0] ? CATEGORIES[0].id : null };
   renderNewTaskModal();
 }
 
@@ -1705,6 +1937,17 @@ function closeNewTaskModal(){
   newTaskModalOpen = false;
   renderNewTaskModal();
 }
+
+// Guarda o que já foi digitado antes de redesenhar o modal (troca de modo/API não perde o título).
+function captureNewTaskDraft(){
+  const t = document.getElementById('new-task-title'); if (t) newTaskDraft.title = t.value;
+  const d = document.getElementById('new-task-day'); if (d) newTaskDraft.day = parseInt(d.value, 10);
+  const c = document.getElementById('new-task-category'); if (c) newTaskDraft.category = c.value;
+}
+function setNewTaskMode(mode){ captureNewTaskDraft(); newTaskMode = mode; renderNewTaskModal(); }
+function setNewTaskConn(id){ captureNewTaskDraft(); newTaskConnId = id; renderNewTaskModal(); }
+
+function connTypeLabel(conn){ return conn.type === 'airtable' ? 'Airtable' : 'Notion'; }
 
 function renderNewTaskModal(){
   const el = document.getElementById('new-task-overlay');
@@ -1718,9 +1961,25 @@ function renderNewTaskModal(){
   let dayOptions = '';
   for (let d = 1; d <= daysInMonth; d++){
     const dow = DOW_SHORT[(new Date(REF_YEAR, REF_MONTH, d).getDay() + 6) % 7];
-    dayOptions += `<option value="${d}" ${d === REF_TODAY_DAY ? 'selected' : ''}>${String(d).padStart(2,'0')} (${dow})</option>`;
+    dayOptions += `<option value="${d}" ${d === newTaskDraft.day ? 'selected' : ''}>${String(d).padStart(2,'0')} (${dow})</option>`;
   }
-  const categoryOptions = CATEGORIES.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  const categoryOptions = CATEGORIES.map(c => `<option value="${c.id}" ${c.id === newTaskDraft.category ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('');
+  const hasConns = API_CONNECTIONS.length > 0;
+  const connected = newTaskMode === 'connected' && hasConns;
+
+  const originToggle = hasConns ? `
+    <div class="nt-origin-toggle">
+      <div class="nt-origin-opt local ${!connected ? 'on' : ''}" onclick="setNewTaskMode('local')">Local (só aqui)</div>
+      <div class="nt-origin-opt connected ${connected ? 'on' : ''}" onclick="setNewTaskMode('connected')">● Conectada</div>
+    </div>` : '';
+
+  const connSelect = connected ? `
+    <select id="new-task-conn" onchange="setNewTaskConn(this.value)">
+      ${API_CONNECTIONS.map(c => `<option value="${c.id}" ${c.id === newTaskConnId ? 'selected' : ''}>${escapeHtml(c.label)} — ${connTypeLabel(c)}</option>`).join('')}
+    </select>
+    <div class="nt-hint">Ao criar, isso vai <b>gerar 1 item novo</b> nessa API (só o título e a data de entrega). A categoria segue a da conexão.</div>
+  ` : '';
+
   el.style.display = 'flex';
   el.innerHTML = `
     <div class="modal-backdrop" onclick="closeNewTaskModal()">
@@ -1730,10 +1989,11 @@ function renderNewTaskModal(){
           <button class="modal-close" onclick="closeNewTaskModal()">✕</button>
         </div>
         <div class="modal-body">
-          <input type="text" id="new-task-title" placeholder="Título da tarefa" onkeydown="if(event.key==='Enter') createLocalTask()">
-          <select id="new-task-category">${categoryOptions}</select>
+          ${originToggle}
+          <input type="text" id="new-task-title" placeholder="Título da tarefa" value="${escapeHtml(newTaskDraft.title)}" onkeydown="if(event.key==='Enter') submitNewTask()">
+          ${connected ? connSelect : `<select id="new-task-category">${categoryOptions}</select>`}
           <select id="new-task-day">${dayOptions}</select>
-          <button class="modal-add-btn" onclick="createLocalTask()">+ Criar tarefa</button>
+          <button class="modal-add-btn ${connected ? 'connected' : ''}" onclick="submitNewTask()">${connected ? '● Criar e enviar pra API' : '+ Criar tarefa'}</button>
         </div>
       </div>
     </div>
@@ -1741,26 +2001,85 @@ function renderNewTaskModal(){
   document.getElementById('new-task-title').focus();
 }
 
-function createLocalTask(){
-  const titleInput = document.getElementById('new-task-title');
-  const daySelect = document.getElementById('new-task-day');
-  const categorySelect = document.getElementById('new-task-category');
-  const title = titleInput.value.trim();
-  if (!title) return;
-  const day = parseInt(daySelect.value, 10);
+function refDueParts(day){
   const mm = String(REF_MONTH + 1).padStart(2, '0');
-  const due = `${String(day).padStart(2,'0')}.${mm}`;
-  const planDay = (new Date(REF_YEAR, REF_MONTH, day).getDay() + 6) % 7;
+  const dd = String(day).padStart(2, '0');
+  return {
+    due: `${dd}.${mm}`,
+    ymd: `${REF_YEAR}-${mm}-${dd}`,
+    human: `${dd}/${mm}/${REF_YEAR}`,
+    planDay: (new Date(REF_YEAR, REF_MONTH, day).getDay() + 6) % 7,
+  };
+}
+
+async function submitNewTask(){
+  captureNewTaskDraft();
+  const title = (newTaskDraft.title || '').trim();
+  if (!title) return;
+  const day = newTaskDraft.day;
+  const dp = refDueParts(day);
+
+  if (newTaskMode === 'connected' && API_CONNECTIONS.length){
+    const conn = API_CONNECTIONS.find(c => c.id === newTaskConnId);
+    if (!conn){ appAlert('Escolha uma API conectada.'); return; }
+    const ok = await apiActionConfirm({
+      destination: `${conn.label} · ${connTypeLabel(conn)}`,
+      lines: [
+        `Vai <b>CRIAR 1 item novo</b> lá.`,
+        `Título: <b>${escapeHtml(title)}</b>`,
+        `Data de entrega: <b>${escapeHtml(dp.human)}</b>`,
+        `Nenhum outro campo é preenchido nem alterado.`,
+      ],
+    });
+    if (!ok) return;
+    let created;
+    try {
+      created = conn.type === 'airtable'
+        ? await airtableCreateRecord(conn, title, dp.ymd)
+        : await notionCreatePage(conn, title, dp.ymd);
+    } catch (e){
+      appAlert('Não consegui criar na API: ' + e.message + '\n\nO token precisa ter permissão de escrita.', 'Erro na API');
+      return;
+    }
+    const task = {
+      id: nextTaskId++,
+      title,
+      source: conn.source,
+      subcat: null,
+      status: DEFAULT_ARRIVAL_STATUS,
+      due: dp.due,
+      url: created.url || null,
+      attachment: null,
+      notes: '',
+      planDay: dp.planDay,
+      planMonthDay: day,
+      planMonth: REF_MONTH,
+      planYear: REF_YEAR,
+      archived: false,
+      apiConnectionId: conn.id,
+    };
+    if (conn.type === 'airtable') task.airtableRecordId = created.id;
+    else task.notionPageId = created.id;
+    TASKS.push(task);
+    newTaskModalOpen = false;
+    renderNewTaskModal();
+    renderApiConnRow();
+    renderAll();
+    appAlert(`Tarefa criada aqui e enviada pra "${conn.label}".`, 'Pronto');
+    return;
+  }
+
+  // Tarefa local
   TASKS.push({
     id: nextTaskId++,
     title,
-    source: categorySelect.value,
+    source: newTaskDraft.category,
     status: 'todo',
-    due,
+    due: dp.due,
     url: null,
     attachment: null,
     notes: '',
-    planDay,
+    planDay: dp.planDay,
     planMonthDay: day,
     planMonth: REF_MONTH,
     planYear: REF_YEAR,
@@ -1769,6 +2088,41 @@ function createLocalTask(){
   newTaskModalOpen = false;
   renderNewTaskModal();
   renderAll();
+}
+
+// -------- Escrita nas APIs (só acontece via popup laranja de confirmação) --------
+async function airtableCreateRecord(conn, title, ymd){
+  const fields = {};
+  if (conn.titleField) fields[conn.titleField] = title;
+  if (conn.dateField) fields[conn.dateField] = ymd;
+  const resp = await fetch(`https://api.airtable.com/v0/${conn.baseId}/${conn.tableId}`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + conn.token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields, typecast: true }),
+  });
+  if (!resp.ok){
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error?.message || ('HTTP ' + resp.status));
+  }
+  const data = await resp.json();
+  return { id: data.id, url: `https://airtable.com/${conn.baseId}/${conn.tableId}/${data.id}` };
+}
+
+async function notionCreatePage(conn, title, ymd){
+  const properties = {};
+  properties[conn.titleProp] = { title: [{ text: { content: title } }] };
+  if (conn.dateProp) properties[conn.dateProp] = { date: { start: ymd } };
+  const resp = await fetch(`${conn.workerUrl}/v1/pages`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + conn.token, 'Notion-Version': NOTION_VERSION, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ parent: { database_id: conn.databaseId }, properties }),
+  });
+  if (!resp.ok){
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.message || ('HTTP ' + resp.status));
+  }
+  const data = await resp.json();
+  return { id: data.id, url: data.url || null };
 }
 
 let showArchivedLocal = false;
@@ -1837,7 +2191,11 @@ function visibleTasks(){
     if (t.archived) return false;
     if (!activeSources.has(t.source)) return false;
     if (activeSubcats.size > 0 && !activeSubcats.has(t.subcat)) return false;
-    if (t.apiConnectionId && !activeApiConnections.has(t.apiConnectionId)) return false;
+    if (t.apiConnectionId){
+      if (!activeApiConnections.has(t.apiConnectionId)) return false;
+    } else if (API_CONNECTIONS.length && !activeApiConnections.has('__local__')){
+      return false; // filtro "Locais" desligado esconde as tarefas criadas no app
+    }
     return true;
   });
 }
@@ -1876,7 +2234,7 @@ async function copyTaskLinkToClipboard(){
     if (btn) btn.textContent = 'Copiado!';
     setTimeout(closeOpenLinkPopup, 700);
   } catch (e){
-    alert('Não consegui copiar automaticamente. Link: ' + t.url);
+    appAlert('Não consegui copiar automaticamente. Link: ' + t.url);
   }
 }
 
@@ -2056,7 +2414,7 @@ function toggleSubcatPicker(id){
 
 function selectSubcatForTask(id, subcatId){
   const t = TASKS.find(x => x.id === id);
-  if (t) t.subcat = subcatId || null;
+  if (t){ t.subcat = subcatId || null; t.subcatUserSet = true; }
   subcatPickerOpenFor = null;
   renderAll();
 }
@@ -2072,7 +2430,7 @@ function addSubcategoryFromTaskPicker(taskId){
     SUBCATEGORIES.push({ id, name, color });
   }
   const t = TASKS.find(x => x.id === taskId);
-  if (t) t.subcat = id;
+  if (t){ t.subcat = id; t.subcatUserSet = true; }
   subcatPickerOpenFor = null;
   renderSubcatRow();
   renderAll();
@@ -2344,25 +2702,90 @@ function taskCardHTML(t, opts = {}){
   `;
 }
 
+function toggleKanbanColumn(id){
+  const c = kanbanColumnById(id);
+  if (c) c.collapsed = !c.collapsed;
+  renderKanban();
+}
+
+async function renameKanbanColumn(id){
+  const c = kanbanColumnById(id);
+  if (!c) return;
+  const name = await appPrompt('Nome da coluna:', c.label, { title: 'Renomear coluna' });
+  if (name === null) return;
+  const trimmed = name.trim();
+  if (trimmed) c.label = trimmed;
+  renderAll();
+}
+
+async function addKanbanColumn(){
+  const name = await appPrompt('Nome da nova coluna:', '', { title: 'Nova coluna', placeholder: 'ex: Revisão' });
+  if (name === null) return;
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  let base = slugify(trimmed) || 'coluna';
+  let id = base, n = 2;
+  while (kanbanColumnById(id)) id = `${base}-${n++}`;
+  KANBAN_COLUMNS.push({ id, label: trimmed, collapsed: false });
+  renderAll();
+}
+
+async function deleteKanbanColumn(id){
+  if (KANBAN_COLUMNS.length <= 1){ appAlert('Precisa ter pelo menos uma coluna.'); return; }
+  const c = kanbanColumnById(id);
+  if (!c) return;
+  const count = TASKS.filter(t => t.status === id).length;
+  const fallback = KANBAN_COLUMNS.find(k => k.id !== id).id;
+  const ok = await appConfirm(`Excluir a coluna "${c.label}"?${count ? ` As ${count} tarefa(s) dela vão pra "${statusLabel(fallback)}".` : ''}`, { title: 'Excluir coluna', kind: 'danger', okLabel: 'Excluir' });
+  if (!ok) return;
+  TASKS.forEach(t => { if (t.status === id) t.status = fallback; });
+  KANBAN_COLUMNS = KANBAN_COLUMNS.filter(k => k.id !== id);
+  renderAll();
+}
+
 function renderKanban(){
   const visible = visibleTasks();
   const el = document.getElementById('kanban-view');
-  el.innerHTML = `<div class="kanban">
-    ${STATUS_ORDER.map(status => {
+  const template = KANBAN_COLUMNS.map(c => c.collapsed ? 'auto' : 'minmax(0,1fr)').join(' ') + ' auto';
+  el.innerHTML = `<div class="kanban" style="grid-template-columns:${template}">
+    ${KANBAN_COLUMNS.map(col => {
+      const status = col.id;
       const items = visible.filter(t => t.status === status);
+      if (col.collapsed){
+        return `
+          <div class="column collapsed" ondragover="event.preventDefault()" ondrop="dropOnColumnKanban(event, '${status}')">
+            <div class="col-collapsed-inner" onclick="toggleKanbanColumn('${status}')" title="Expandir coluna">
+              <span class="col-collapsed-caret">▸</span>
+              <span class="col-collapsed-title">${escapeHtml(col.label)}</span>
+              <span class="count">${items.length}</span>
+            </div>
+          </div>
+        `;
+      }
       const cardFn = t => simplifiedMode
         ? simplePillHTML(t, { dragCtx: id => `dropOnCardKanban(event, ${id}, '${status}')` })
         : taskCardHTML(t, { dragCtx: id => `dropOnCardKanban(event, ${id}, '${status}')` });
       const cards = items.map(cardFn).join('');
       return `
         <div class="column">
-          <h2>${STATUS_LABEL[status]} <span class="count">${items.length}</span></h2>
+          <h2>
+            <button class="col-caret" onclick="toggleKanbanColumn('${status}')" title="Colapsar coluna">▾</button>
+            <span class="col-title" ondblclick="renameKanbanColumn('${status}')" title="2 cliques pra renomear">${escapeHtml(col.label)}</span>
+            <span class="count">${items.length}</span>
+            <span class="col-tools">
+              <button onclick="renameKanbanColumn('${status}')" title="Renomear">✎</button>
+              <button onclick="deleteKanbanColumn('${status}')" title="Excluir coluna">✕</button>
+            </span>
+          </h2>
           <div class="column-body" ondragover="event.preventDefault()" ondrop="dropOnColumnKanban(event, '${status}')">
             ${items.length ? cards : '<div class="empty-hint">— vazio —</div>'}
           </div>
         </div>
       `;
     }).join('')}
+    <div class="column column-add">
+      <button class="add-column-btn" onclick="addKanbanColumn()" title="Adicionar coluna">+ Coluna</button>
+    </div>
   </div>`;
 }
 
@@ -2646,7 +3069,7 @@ function listRowHTML(t){
       </div>
       <div class="lr-field lr-status">
         <span class="lr-label">Status</span>
-        <span class="status">${STATUS_LABEL[t.status]}${t.url ? ' ↗' : ''}</span>
+        <span class="status">${statusLabel(t.status)}${t.url ? ' ↗' : ''}</span>
       </div>
     </div>
   `;
@@ -2673,7 +3096,7 @@ function bulkSetCategory(catId){
 function bulkSetSubcat(value){
   if (!value) return;
   const subcatId = value === '__none__' ? null : value;
-  TASKS.forEach(t => { if (selectedTaskIds.has(t.id)) t.subcat = subcatId; });
+  TASKS.forEach(t => { if (selectedTaskIds.has(t.id)){ t.subcat = subcatId; t.subcatUserSet = true; } });
   renderAll();
 }
 
@@ -2782,7 +3205,6 @@ function simplePillHTML(t, opts = {}){
           <span class="simple-pill-title">${escapeHtml(t.title)}</span>
         </div>
         <div class="simple-pill-date" style="background:${dateColor};">${t.due || '—'}</div>
-        <span class="simple-pill-caret">${expanded ? '▴' : '▾'}</span>
       </div>
       ${expanded ? `<div class="simple-pill-expanded" onclick="event.stopPropagation()">${taskCardHTML(t, { showMismatch: true })}</div>` : ''}
     </div>
@@ -3119,7 +3541,7 @@ function calendarLogin(){
     scope: CAL_SCOPE,
     prompt: 'select_account',
     callback: async (resp) => {
-      if (resp.error){ alert('Erro ao conectar a agenda.'); return; }
+      if (resp.error){ appAlert('Erro ao conectar a agenda.'); return; }
       const token = resp.access_token;
       let email = 'conta Google';
       try {
@@ -3154,7 +3576,7 @@ async function loadCalendarsForAccount(email, token){
       }
     });
   } catch (e){
-    alert(`Erro ao listar agendas de ${email}: ${e.message}`);
+    appAlert(`Erro ao listar agendas de ${email}: ${e.message}`);
   }
 }
 
@@ -3285,6 +3707,7 @@ function buildStateObject(){
     version: 1,
     exportedAt: new Date().toISOString(),
     CATEGORIES,
+    KANBAN_COLUMNS,
     TASKS,
     SUBCATEGORIES,
     CHECKLISTS,
@@ -3327,7 +3750,7 @@ function driveLogin(){
     client_id: GD_CLIENT_ID,
     scope: GD_SCOPE,
     callback: (resp) => {
-      if (resp.error){ alert('Erro ao logar no Google Drive.'); return; }
+      if (resp.error){ appAlert('Erro ao logar no Google Drive.'); return; }
       gdToken = resp.access_token;
       updateDriveBtnUI(true);
       driveCarregar();
@@ -3362,7 +3785,7 @@ function showDriveMenu(){
 }
 
 async function driveSalvar(silent){
-  if (!gdToken){ alert('Conecte o Google Drive primeiro.'); return; }
+  if (!gdToken){ appAlert('Conecte o Google Drive primeiro.'); return; }
   try {
     const json = JSON.stringify(buildStateObject(), null, 2);
     const search = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='${GD_FILE}'+and+trashed=false`, { headers: { Authorization: 'Bearer ' + gdToken } });
@@ -3382,25 +3805,25 @@ async function driveSalvar(silent){
         method: 'PATCH', headers: { Authorization: 'Bearer ' + gdToken, 'Content-Type': 'application/json' }, body: json
       });
     }
-    if (!silent) alert('Salvo no Google Drive!');
+    if (!silent) appAlert('Salvo no Google Drive!');
   } catch (e){
-    alert('Erro ao salvar no Drive: ' + e.message);
+    appAlert('Erro ao salvar no Drive: ' + e.message);
   }
 }
 
 async function driveCarregar(){
-  if (!gdToken){ alert('Conecte o Google Drive primeiro.'); return; }
+  if (!gdToken){ appAlert('Conecte o Google Drive primeiro.'); return; }
   try {
     const search = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='${GD_FILE}'+and+trashed=false`, { headers: { Authorization: 'Bearer ' + gdToken } });
     const found = await search.json();
-    if (!found.files || !found.files[0]){ alert('Nenhum dado salvo no Drive ainda.'); return; }
+    if (!found.files || !found.files[0]){ appAlert('Nenhum dado salvo no Drive ainda.'); return; }
     const fileId = found.files[0].id;
     const resp = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, { headers: { Authorization: 'Bearer ' + gdToken } });
     const text = await resp.text();
     importStateFromJSON(text);
-    alert('Dados carregados do Google Drive!');
+    appAlert('Dados carregados do Google Drive!');
   } catch (e){
-    alert('Erro ao carregar do Drive: ' + e.message);
+    appAlert('Erro ao carregar do Drive: ' + e.message);
   }
 }
 
@@ -3410,7 +3833,7 @@ async function driveCarregar(){
 let API_CONNECTIONS = []; // [{ id, type:'airtable'|'notion', label, source, ... }] — vai pro backup/Drive
 let AIRTABLE_SCHEMA_CACHE = null; // resultado da última busca de tabelas/campos pro formulário em andamento — só sessão, não persiste
 let NOTION_SCHEMA_CACHE = null; // idem, pro formulário de conexão do Notion
-let activeApiConnections = new Set(); // filtro de sessão (como activeSources/activeSubcats), não persiste
+let activeApiConnections = new Set(['__local__']); // filtro de sessão (como activeSources/activeSubcats), não persiste — '__local__' = tarefas criadas no app
 let EDITING_CONN_ID = null; // id da conexão sendo editada (reusa token/config salvos em vez de pedir tudo de novo) — só sessão
 
 function toggleApiConnFilter(id){
@@ -3423,16 +3846,30 @@ function renderApiConnRow(){
   const el = document.getElementById('api-conn-row');
   if (!el) return;
   const showTaskUI = TASK_VIEWS.includes(currentView);
-  if (!API_CONNECTIONS.length){ el.innerHTML = ''; el.style.display = 'none'; return; }
+  if (!API_CONNECTIONS.length){
+    // Sem APIs, tudo é local — garante que as tarefas locais nunca fiquem escondidas sem toggle.
+    activeApiConnections.add('__local__');
+    el.innerHTML = ''; el.style.display = 'none'; return;
+  }
   el.style.display = showTaskUI ? 'flex' : 'none';
+  const caret = apiRowCollapsed ? '▸' : '▾';
+  const localChip = `
+    <div class="chip subcat-chip ${activeApiConnections.has('__local__') ? 'on' : ''}" style="--dotcolor:var(--local)" onclick="toggleApiConnFilter('__local__')" title="Tarefas criadas direto no app">
+      <span class="dot"></span>Locais
+    </div>`;
   el.innerHTML = `
-    <span class="label">APIs conectadas</span>
-    ${API_CONNECTIONS.map(c => `
-      <div class="chip subcat-chip ${activeApiConnections.has(c.id) ? 'on' : ''}" style="--dotcolor:${categoryById(c.source).color}" onclick="toggleApiConnFilter('${c.id}')">
-        <span class="dot"></span>${escapeHtml(c.label)}
-      </div>
-    `).join('')}
-    <button class="add-subcat-trigger" onclick="openApisConnect()">Gerenciar</button>
+    <button class="row-collapse" onclick="toggleApiRowCollapsed()" title="${apiRowCollapsed ? 'Expandir' : 'Minimizar'}">${caret}</button>
+    <span class="label" onclick="toggleApiRowCollapsed()" style="cursor:pointer;">APIs conectadas</span>
+    ${apiRowCollapsed
+      ? `<span class="row-collapsed-count">${API_CONNECTIONS.length + 1}</span>`
+      : `${localChip}
+        ${API_CONNECTIONS.map(c => `
+          <div class="chip subcat-chip ${activeApiConnections.has(c.id) ? 'on' : ''}" style="--dotcolor:${categoryById(c.source).color}" onclick="toggleApiConnFilter('${c.id}')">
+            <span class="dot"></span>${escapeHtml(c.label)}
+          </div>
+        `).join('')}
+        <button class="add-subcat-trigger" onclick="openApisConnect()">Gerenciar</button>`
+    }
   `;
 }
 
@@ -3461,14 +3898,14 @@ async function airtableFetchSchemaForEdit(conn){
     const resp = await fetch(`https://api.airtable.com/v0/meta/bases/${conn.baseId}/tables`, { headers: { Authorization: 'Bearer ' + conn.token } });
     if (!resp.ok){
       const err = await resp.json().catch(() => ({}));
-      alert('Erro ao buscar tabelas: ' + (err.error?.message || resp.status));
+      appAlert('Erro ao buscar tabelas: ' + (err.error?.message || resp.status));
       return;
     }
     const data = await resp.json();
     AIRTABLE_SCHEMA_CACHE = { token: conn.token, baseId: conn.baseId, tables: data.tables || [] };
     renderApisModal('airtable-mapping');
   } catch (e){
-    alert('Erro ao buscar tabelas: ' + e.message);
+    appAlert('Erro ao buscar tabelas: ' + e.message);
   }
 }
 
@@ -3479,7 +3916,7 @@ async function notionFetchSchemaForEdit(conn){
     });
     if (!resp.ok){
       const err = await resp.json().catch(() => ({}));
-      alert('Erro ao buscar a base: ' + (err.message || resp.status));
+      appAlert('Erro ao buscar a base: ' + (err.message || resp.status));
       return;
     }
     const data = await resp.json();
@@ -3490,7 +3927,7 @@ async function notionFetchSchemaForEdit(conn){
     };
     renderApisModal('notion-mapping');
   } catch (e){
-    alert('Erro ao buscar a base: ' + e.message);
+    appAlert('Erro ao buscar a base: ' + e.message);
   }
 }
 
@@ -3502,8 +3939,9 @@ function guessStatusBucket(name){
   return 'todo';
 }
 
-function removeApiConnection(id){
-  if (!confirm('Remover essa conexão e apagar as tarefas importadas por ela?')) return;
+async function removeApiConnection(id){
+  const ok = await appConfirm('Remover essa conexão e apagar as tarefas importadas por ela? Isso não mexe em nada na API — só para de importar aqui.', { title: 'Remover conexão', kind: 'danger', okLabel: 'Remover' });
+  if (!ok) return;
   API_CONNECTIONS = API_CONNECTIONS.filter(c => c.id !== id);
   activeApiConnections.delete(id);
   const keep = TASKS.filter(t => t.apiConnectionId !== id);
@@ -3517,14 +3955,14 @@ function removeApiConnection(id){
 async function airtableFetchSchema(){
   const token = document.getElementById('at-token').value.trim();
   const baseId = document.getElementById('at-base').value.trim();
-  if (!token || !baseId){ alert('Preencha o token e o Base ID.'); return; }
+  if (!token || !baseId){ appAlert('Preencha o token e o Base ID.'); return; }
   const btn = document.getElementById('at-fetch-btn');
   if (btn) btn.textContent = 'Buscando...';
   try {
     const resp = await fetch(`https://api.airtable.com/v0/meta/bases/${baseId}/tables`, { headers: { Authorization: 'Bearer ' + token } });
     if (!resp.ok){
       const err = await resp.json().catch(() => ({}));
-      alert('Erro ao buscar tabelas: ' + (err.error?.message || resp.status));
+      appAlert('Erro ao buscar tabelas: ' + (err.error?.message || resp.status));
       if (btn) btn.textContent = 'Buscar tabelas';
       return;
     }
@@ -3532,7 +3970,7 @@ async function airtableFetchSchema(){
     AIRTABLE_SCHEMA_CACHE = { token, baseId, tables: data.tables || [] };
     renderApisModal('airtable-mapping');
   } catch (e){
-    alert('Erro ao buscar tabelas: ' + e.message);
+    appAlert('Erro ao buscar tabelas: ' + e.message);
     if (btn) btn.textContent = 'Buscar tabelas';
   }
 }
@@ -3586,7 +4024,7 @@ function renderApisModal(step){
 
             <div style="font-size:11px; color:var(--muted-2); text-transform:uppercase; letter-spacing:.04em; margin-top:8px;">Campo de status</div>
             <select id="at-status-select" onchange="renderApisModal('airtable-mapping')">
-              <option value="">(nenhum — tudo entra como "A Fazer")</option>
+              <option value="">(nenhum — tudo entra na "${escapeHtml(statusLabel(DEFAULT_ARRIVAL_STATUS))}")</option>
               ${fields.map(f => `<option value="${f.id}" ${statusField && f.id === statusField.id ? 'selected' : ''}>${escapeHtml(f.name)}</option>`).join('')}
             </select>
             ${statusChoices.length ? `
@@ -3604,9 +4042,7 @@ function renderApisModal(step){
                 <div style="display:grid; grid-template-columns: 1fr 118px 118px; gap:6px; align-items:center; margin-bottom:4px;">
                   <span style="font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(c.name)}</span>
                   <select id="at-statusmap-${escapeHtml(c.id)}" style="font-family:'IBM Plex Mono',monospace; font-size:10.5px; background:var(--surface); border:1px solid var(--line); color:var(--text); border-radius:4px; padding:4px 4px;">
-                    <option value="todo" ${defaultBucket === 'todo' ? 'selected' : ''}>A Fazer</option>
-                    <option value="doing" ${defaultBucket === 'doing' ? 'selected' : ''}>Fazendo</option>
-                    <option value="waiting" ${defaultBucket === 'waiting' ? 'selected' : ''}>Esp. Retorno</option>
+                    ${KANBAN_COLUMNS.map(col => `<option value="${col.id}" ${defaultBucket === col.id ? 'selected' : ''}>${escapeHtml(col.label)}</option>`).join('')}
                     <option value="archived" ${defaultBucket === 'archived' ? 'selected' : ''}>Já arquivada</option>
                     <option value="skip" ${defaultBucket === 'skip' ? 'selected' : ''}>Não importar</option>
                   </select>
@@ -3816,7 +4252,7 @@ function airtableDateToDue(raw){
 
 async function syncApiConnection(connId){
   const conn = API_CONNECTIONS.find(c => c.id === connId);
-  if (!conn){ alert('Conexão não encontrada.'); return; }
+  if (!conn){ appAlert('Conexão não encontrada.'); return; }
   if (conn.type === 'airtable') await syncAirtableConnection(conn);
   if (conn.type === 'notion') await syncNotionConnection(conn);
 }
@@ -3834,7 +4270,7 @@ async function notionFetchSchema(){
   const workerUrl = document.getElementById('nt-worker').value.trim().replace(/\/$/, '');
   const token = document.getElementById('nt-token').value.trim();
   const dbId = extractNotionId(document.getElementById('nt-db').value.trim());
-  if (!workerUrl || !token || !dbId){ alert('Preencha a URL do Worker, o token e o link/ID da base.'); return; }
+  if (!workerUrl || !token || !dbId){ appAlert('Preencha a URL do Worker, o token e o link/ID da base.'); return; }
   const btn = document.getElementById('nt-fetch-btn');
   if (btn) btn.textContent = 'Buscando...';
   try {
@@ -3843,7 +4279,7 @@ async function notionFetchSchema(){
     });
     if (!resp.ok){
       const err = await resp.json().catch(() => ({}));
-      alert('Erro ao buscar a base: ' + (err.message || resp.status));
+      appAlert('Erro ao buscar a base: ' + (err.message || resp.status));
       if (btn) btn.textContent = 'Buscar propriedades';
       return;
     }
@@ -3855,7 +4291,7 @@ async function notionFetchSchema(){
     };
     renderApisModal('notion-mapping');
   } catch (e){
-    alert('Erro ao buscar a base: ' + e.message);
+    appAlert('Erro ao buscar a base: ' + e.message);
     if (btn) btn.textContent = 'Buscar propriedades';
   }
 }
@@ -3867,7 +4303,7 @@ function notionSaveConnectionAndSync(){
   const dateProp = document.getElementById('nt-date-select').value;
   const label = document.getElementById('nt-label').value.trim() || cache.databaseName || 'Notion';
   const source = document.getElementById('nt-source-select').value;
-  if (!titleProp || !dateProp){ alert('Essa base precisa ter uma propriedade de título e uma de data.'); return; }
+  if (!titleProp || !dateProp){ appAlert('Essa base precisa ter uma propriedade de título e uma de data.'); return; }
 
   const conn = {
     id: EDITING_CONN_ID || `nt-${cache.databaseId}`,
@@ -3911,7 +4347,7 @@ async function syncNotionConnection(conn){
       });
       if (!resp.ok){
         const err = await resp.json().catch(() => ({}));
-        alert(`Erro ao buscar tarefas do Notion (${conn.label}): ` + (err.message || resp.status));
+        appAlert(`Erro ao buscar tarefas do Notion (${conn.label}): ` + (err.message || resp.status));
         return;
       }
       const data = await resp.json();
@@ -3919,7 +4355,7 @@ async function syncNotionConnection(conn){
       cursor = data.has_more ? data.next_cursor : null;
     } while (cursor);
   } catch (e){
-    alert(`Erro ao buscar tarefas do Notion (${conn.label}): ` + e.message);
+    appAlert(`Erro ao buscar tarefas do Notion (${conn.label}): ` + e.message);
     return;
   }
 
@@ -3947,7 +4383,7 @@ async function syncNotionConnection(conn){
         title,
         source: conn.source,
         subcat: null,
-        status: 'todo',
+        status: DEFAULT_ARRIVAL_STATUS,
         due: dateInfo.due,
         url: page.url,
         attachment: null,
@@ -3965,7 +4401,7 @@ async function syncNotionConnection(conn){
   });
 
   renderAll();
-  alert(`Importado! ${imported} tarefa(s) de "${conn.label}".`);
+  appAlert(`Importado! ${imported} tarefa(s) de "${conn.label}".`);
 }
 
 function airtableValueMatches(raw, expected){
@@ -3998,7 +4434,7 @@ async function syncAirtableConnection(conn){
       const resp = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
       if (!resp.ok){
         const err = await resp.json().catch(() => ({}));
-        alert(`Erro ao buscar tarefas do Airtable (${conn.label}): ` + (err.error?.message || resp.status));
+        appAlert(`Erro ao buscar tarefas do Airtable (${conn.label}): ` + (err.error?.message || resp.status));
         return;
       }
       const data = await resp.json();
@@ -4006,7 +4442,7 @@ async function syncAirtableConnection(conn){
       offset = data.offset || null;
     } while (offset);
   } catch (e){
-    alert(`Erro ao buscar tarefas do Airtable (${conn.label}): ` + e.message);
+    appAlert(`Erro ao buscar tarefas do Airtable (${conn.label}): ` + e.message);
     return;
   }
 
@@ -4020,7 +4456,7 @@ async function syncAirtableConnection(conn){
     const fields = rec.fields || {};
     const title = (titleField && fields[titleField]) ? String(fields[titleField]) : '(sem título)';
     const rawStatus = statusField ? fields[statusField] : null;
-    const mapping = (rawStatus && statusMap[rawStatus]) ? statusMap[rawStatus] : { bucket: 'todo', subcat: null };
+    const mapping = (rawStatus && statusMap[rawStatus]) ? statusMap[rawStatus] : { bucket: DEFAULT_ARRIVAL_STATUS, subcat: null };
     const dateInfo = dateField ? airtableDateToDue(fields[dateField]) : null;
     const link = `https://airtable.com/${baseId}/${tableId}/${rec.id}`;
     const existing = TASKS.find(x => x.apiConnectionId === conn.id && x.airtableRecordId === rec.id);
@@ -4031,14 +4467,17 @@ async function syncAirtableConnection(conn){
       return;
     }
 
-    const status = mapping.bucket === 'archived' ? 'todo' : mapping.bucket;
     const archived = mapping.bucket === 'archived';
+    // Se a coluna mapeada foi renomeada/excluída, cai na coluna de chegada padrão.
+    const rawBucket = archived ? DEFAULT_ARRIVAL_STATUS : mapping.bucket;
+    const status = kanbanColumnById(rawBucket) ? rawBucket : (KANBAN_COLUMNS[0] ? KANBAN_COLUMNS[0].id : DEFAULT_ARRIVAL_STATUS);
 
     if (existing){
       existing.title = title;
       existing.status = status;
       existing.archived = archived;
-      existing.subcat = mapping.subcat || null;
+      // Não sobrescreve a subcategoria se o usuário marcou uma manualmente aqui no app.
+      if (!existing.subcatUserSet) existing.subcat = mapping.subcat || null;
       existing.url = link;
       if (dateInfo){
         existing.due = dateInfo.due;
@@ -4071,7 +4510,7 @@ async function syncAirtableConnection(conn){
   });
 
   renderAll();
-  alert(`Importado! ${imported} tarefa(s) de "${conn.label}"${skipped ? ` (${skipped} pulada(s) por status "Não importar")` : ''}.`);
+  appAlert(`Importado! ${imported} tarefa(s) de "${conn.label}"${skipped ? ` (${skipped} pulada(s) por status "Não importar")` : ''}.`);
 }
 
 async function syncAllApiConnections(){
@@ -4090,10 +4529,11 @@ function importStateFromJSON(jsonText){
   try {
     data = JSON.parse(jsonText);
   } catch (err){
-    alert('Esse arquivo não é um JSON válido da Central de Tarefas.');
+    appAlert('Esse arquivo não é um JSON válido da Central de Tarefas.');
     return;
   }
   if (data.CATEGORIES) CATEGORIES = data.CATEGORIES;
+  if (Array.isArray(data.KANBAN_COLUMNS) && data.KANBAN_COLUMNS.length) KANBAN_COLUMNS = data.KANBAN_COLUMNS;
   if (data.TASKS){ TASKS.length = 0; TASKS.push(...data.TASKS); }
   if (data.SUBCATEGORIES) SUBCATEGORIES = data.SUBCATEGORIES;
   if (data.CHECKLISTS) CHECKLISTS = data.CHECKLISTS;
@@ -4103,7 +4543,7 @@ function importStateFromJSON(jsonText){
 
   activeSources = new Set(CATEGORIES.map(c => c.id));
   activeSubcats = new Set();
-  activeApiConnections = new Set(API_CONNECTIONS.map(c => c.id));
+  activeApiConnections = new Set(['__local__', ...API_CONNECTIONS.map(c => c.id)]);
   TASKS.forEach(t => {
     if (t.planDay === undefined) t.planDay = sourceWeekday(t);
     if (t.planMonthDay === undefined) t.planMonthDay = dayOfMonthFromDue(t.due);
@@ -4156,7 +4596,7 @@ window.addEventListener('drop', (e) => {
   const file = e.dataTransfer.files && e.dataTransfer.files[0];
   if (!file) return;
   if (!file.name.toLowerCase().endsWith('.json')){
-    alert('Solte um arquivo .json exportado da Central de Tarefas.');
+    appAlert('Solte um arquivo .json exportado da Central de Tarefas.');
     return;
   }
   const reader = new FileReader();
