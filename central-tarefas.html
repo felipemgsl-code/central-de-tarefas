@@ -434,6 +434,38 @@
   .simple-pill-expanded{ margin: -2px 0 8px; }
   .simple-pill-expanded .task{ margin-bottom: 0; cursor: default; }
 
+  /* bolinha de foco — só visual, não muda status; clique apaga/reacende a tarefa comprimida.
+     A área clicável é o cantinho esquerdo inteiro da pill, não só a bolinha (mais fácil de acertar). */
+  .simple-pill-dot-zone{
+    flex-shrink: 0;
+    width: 30px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    border-top-left-radius: 15px;
+    border-bottom-left-radius: 15px;
+    transition: background .12s ease;
+  }
+  .simple-pill-dot-zone:hover{ background: rgba(255,255,255,0.16); }
+  .simple-pill-dot-zone:active{ background: rgba(255,255,255,0.24); }
+  .simple-pill-dot{
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.18);
+    transition: transform .1s ease;
+  }
+  .simple-pill-dot-zone:hover .simple-pill-dot{ transform: scale(1.25); }
+  .simple-pill.dimmed{ opacity: 0.3; }
+  .simple-pill.dimmed:hover{ opacity: 0.55; }
+
   /* seleção múltipla no Kanban (Ctrl/Cmd + clique) */
   .task.kanban-selected{ outline: 2px solid var(--freela); outline-offset: 1px; }
   .simple-pill.kanban-selected{ outline: 2px solid #fff; outline-offset: 2px; }
@@ -873,7 +905,9 @@
     display:flex;
     align-items:center;
     justify-content: space-between;
+    cursor: grab;
   }
+  .column h2:active{ cursor: grabbing; }
 
   .column h2 .count{
     font-family: 'IBM Plex Mono', monospace;
@@ -890,7 +924,7 @@
     font-size: 11px; cursor: pointer; padding: 0; line-height: 1; flex-shrink: 0;
   }
   .column h2 .col-caret:hover{ color: var(--text); }
-  .column h2 .col-title{ cursor: text; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .column h2 .col-title{ flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .column h2 .col-tools{ display: inline-flex; gap: 4px; opacity: 0; transition: opacity .12s; flex-shrink: 0; }
   .column:hover h2 .col-tools{ opacity: 1; }
   .column h2 .col-tools button{
@@ -899,6 +933,13 @@
   }
   .column h2 .col-tools button:hover{ color: var(--text); }
 
+  /* sinalização visual de onde a coluna arrastada vai entrar se soltar ali */
+  .column.column-drop-target{
+    outline: 2px dashed var(--freela);
+    outline-offset: 8px;
+    border-radius: 14px;
+  }
+
   .column.collapsed{
     background: var(--surface);
     border: 1px solid var(--line);
@@ -906,7 +947,8 @@
     padding: 12px 6px;
     align-self: start;
   }
-  .col-collapsed-inner{ display:flex; flex-direction:column; align-items:center; gap:10px; cursor:pointer; }
+  .col-collapsed-inner{ display:flex; flex-direction:column; align-items:center; gap:10px; cursor:grab; }
+  .col-collapsed-inner:active{ cursor:grabbing; }
   .col-collapsed-caret{ color: var(--muted-2); font-size: 11px; }
   .col-collapsed-inner:hover .col-collapsed-caret{ color: var(--text); }
   .col-collapsed-title{
@@ -3118,8 +3160,8 @@ function renderKanban(){
       const items = visible.filter(t => t.status === status);
       if (col.collapsed){
         return `
-          <div class="column collapsed" ondragover="event.preventDefault()" ondrop="dropOnColumnKanban(event, '${status}')">
-            <div class="col-collapsed-inner" onclick="toggleKanbanColumn('${status}')" title="Expandir coluna">
+          <div class="column collapsed" ondragover="columnDragOverIndicator(event, '${status}')" ondrop="dropOnColumnKanban(event, '${status}')">
+            <div class="col-collapsed-inner" draggable="true" ondragstart="columnDragStart(event, '${status}')" ondragend="columnDragEnd()" onclick="toggleKanbanColumn('${status}')" title="Expandir coluna · arraste pra reordenar">
               <span class="col-collapsed-caret">▸</span>
               <span class="col-collapsed-title">${escapeHtml(col.label)}</span>
               <span class="count">${items.length}</span>
@@ -3133,7 +3175,7 @@ function renderKanban(){
       const cards = items.map(cardFn).join('');
       return `
         <div class="column">
-          <h2>
+          <h2 draggable="true" ondragstart="columnDragStart(event, '${status}')" ondragend="columnDragEnd()" ondragover="columnDragOverIndicator(event, '${status}')" ondrop="dropOnColumnKanban(event, '${status}')" title="Arraste pelo título pra reordenar as colunas">
             <button class="col-caret" onclick="toggleKanbanColumn('${status}')" title="Colapsar coluna">▾</button>
             <span class="col-title" ondblclick="renameKanbanColumn('${status}')" title="2 cliques pra renomear">${escapeHtml(col.label)}</span>
             <span class="count">${items.length}</span>
@@ -3142,7 +3184,7 @@ function renderKanban(){
               <button onclick="deleteKanbanColumn('${status}')" title="Excluir coluna">✕</button>
             </span>
           </h2>
-          <div class="column-body" ondragover="event.preventDefault()" ondrop="dropOnColumnKanban(event, '${status}')">
+          <div class="column-body" ondragover="columnDragOverIndicator(event, '${status}')" ondrop="dropOnColumnKanban(event, '${status}')">
             ${items.length ? cards : '<div class="empty-hint">— vazio —</div>'}
           </div>
         </div>
@@ -3213,6 +3255,44 @@ function hasMismatch(t){
 // -------- Drag and drop (só organiza dentro da Central, nunca muda a fonte) --------
 let draggedId = null;
 
+// Reordenar colunas do Kanban arrastando pelo cabeçalho
+let draggedColumnId = null;
+
+function columnDragStart(e, id){
+  draggedColumnId = id;
+  e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', 'col:' + id); } catch(err) {}
+}
+function columnDragEnd(){
+  draggedColumnId = null;
+  clearColumnDropIndicator();
+}
+
+// Sinalização visual de onde a coluna arrastada vai entrar se soltar agora
+let columnDropTargetId = null;
+function clearColumnDropIndicator(){
+  document.querySelectorAll('.column-drop-target').forEach(el => el.classList.remove('column-drop-target'));
+  columnDropTargetId = null;
+}
+function columnDragOverIndicator(e, id){
+  e.preventDefault();
+  if (draggedColumnId == null || draggedColumnId === id) return;
+  if (columnDropTargetId === id) return;
+  clearColumnDropIndicator();
+  columnDropTargetId = id;
+  const colEl = e.currentTarget.closest('.column');
+  if (colEl) colEl.classList.add('column-drop-target');
+}
+function moveKanbanColumn(id, beforeId){
+  const idx = KANBAN_COLUMNS.findIndex(c => c.id === id);
+  if (idx === -1) return;
+  const [item] = KANBAN_COLUMNS.splice(idx, 1);
+  if (beforeId == null){ KANBAN_COLUMNS.push(item); return; }
+  let newIdx = KANBAN_COLUMNS.findIndex(c => c.id === beforeId);
+  if (newIdx === -1) newIdx = KANBAN_COLUMNS.length;
+  KANBAN_COLUMNS.splice(newIdx, 0, item);
+}
+
 // Seleção múltipla no Kanban (Ctrl/Cmd + clique) pra mover várias tarefas de coluna de uma vez
 let kanbanSelected = new Set();
 
@@ -3263,6 +3343,11 @@ function moveInArray(id, beforeId){
 
 function dropOnCardKanban(e, targetId, status){
   e.preventDefault(); e.stopPropagation();
+  if (draggedColumnId != null){
+    if (draggedColumnId !== status) moveKanbanColumn(draggedColumnId, status);
+    draggedColumnId = null; clearColumnDropIndicator(); renderKanban();
+    return;
+  }
   if (draggedId == null) return;
   const ids = kanbanDragIds();
   if (ids.length === 1 && ids[0] === targetId) return;
@@ -3273,6 +3358,12 @@ function dropOnCardKanban(e, targetId, status){
 }
 function dropOnColumnKanban(e, status){
   e.preventDefault();
+  if (draggedColumnId != null){
+    e.stopPropagation();
+    if (draggedColumnId !== status) moveKanbanColumn(draggedColumnId, status);
+    draggedColumnId = null; clearColumnDropIndicator(); renderKanban();
+    return;
+  }
   if (draggedId == null) return;
   const ids = kanbanDragIds();
   ids.forEach(id => { const t = TASKS.find(x => x.id === id); if (t){ t.status = status; t.statusUserSet = true; } });
@@ -3647,6 +3738,12 @@ function simplePillHoverEnd(el){
   el.scrollLeft = 0;
 }
 
+function toggleTaskDim(id){
+  const t = TASKS.find(x => x.id === id);
+  if (t) t.dimmed = !t.dimmed;
+  renderAll();
+}
+
 function simplePillHTML(t, opts = {}){
   const { dragCtx = null, selectable = false } = opts;
   const cat = categoryById(t.source);
@@ -3658,7 +3755,8 @@ function simplePillHTML(t, opts = {}){
   const dropAttrs = dragCtx ? `ondragover="event.preventDefault()" ondrop="${dragCtx(t.id)}"` : '';
   return `
     <div>
-      <div class="simple-pill ${selected ? 'kanban-selected' : ''}" draggable="true" ondragstart="dragStart(event, ${t.id})" ${dropAttrs} style="background:${pillBg};" onclick="${clickAttr}">
+      <div class="simple-pill ${selected ? 'kanban-selected' : ''} ${t.dimmed ? 'dimmed' : ''}" draggable="true" ondragstart="dragStart(event, ${t.id})" ${dropAttrs} style="background:${pillBg};" onclick="${clickAttr}">
+        <button type="button" class="simple-pill-dot-zone" onclick="event.stopPropagation(); toggleTaskDim(${t.id})" title="${t.dimmed ? 'Tirar o apagado' : 'Apagar (só destacar menos, não muda status)'}"><span class="simple-pill-dot"></span></button>
         <div class="simple-pill-title-wrap" onmouseenter="simplePillHoverStart(this)" onmouseleave="simplePillHoverEnd(this)">
           <span class="simple-pill-title">${escapeHtml(t.title)}</span>
         </div>
