@@ -3196,13 +3196,67 @@ function renderKanban(){
   </div>`;
 }
 
+// -------- Semana — sempre ancorada numa semana real (segunda a domingo), navegável --------
+function mondayOf(date){
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const dow = (d.getDay() + 6) % 7; // 0 = segunda
+  d.setDate(d.getDate() - dow);
+  return d;
+}
+
+let semanaViewMonday = mondayOf(new Date(REF_YEAR, REF_MONTH, REF_TODAY_DAY));
+
+function semanaDayDate(i){
+  const d = new Date(semanaViewMonday);
+  d.setDate(semanaViewMonday.getDate() + i);
+  return d;
+}
+
+function shiftSemanaWeek(delta){
+  semanaViewMonday.setDate(semanaViewMonday.getDate() + delta * 7);
+  renderSemana();
+}
+
+function goToSemanaHoje(){
+  semanaViewMonday = mondayOf(new Date(REF_YEAR, REF_MONTH, REF_TODAY_DAY));
+  renderSemana();
+}
+
+function semanaRangeLabel(){
+  const start = semanaDayDate(0);
+  const end = semanaDayDate(6);
+  const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
+  const startLabel = `${String(start.getDate()).padStart(2,'0')}${sameMonth ? '' : ' de ' + MONTH_NAMES[start.getMonth()]}`;
+  const endLabel = `${String(end.getDate()).padStart(2,'0')} de ${MONTH_NAMES[end.getMonth()]}`;
+  const yearLabel = start.getFullYear() === end.getFullYear() ? start.getFullYear() : `${start.getFullYear()}/${end.getFullYear()}`;
+  return `${startLabel} – ${endLabel} de ${yearLabel}`;
+}
+
+function isSemanaViewingCurrentWeek(){
+  return mondayOf(new Date(REF_YEAR, REF_MONTH, REF_TODAY_DAY)).getTime() === semanaViewMonday.getTime();
+}
+
 function renderSemana(){
   const visible = visibleTasks();
   const el = document.getElementById('semana-view');
-  el.innerHTML = `<div class="week">
+  const isCurrentWeek = isSemanaViewingCurrentWeek();
+  el.innerHTML = `
+    <div class="month-head">
+      <h2 style="display:flex; align-items:center; gap:10px;">
+        <button type="button" class="dp-nav" onclick="shiftSemanaWeek(-1)" title="Semana anterior">‹</button>
+        ${semanaRangeLabel()}
+        <button type="button" class="dp-nav" onclick="shiftSemanaWeek(1)" title="Próxima semana">›</button>
+        ${!isCurrentWeek ? `<button class="back-btn" style="margin:0; padding:4px 10px; font-size:11px;" onclick="goToSemanaHoje()">Hoje</button>` : ''}
+      </h2>
+      <span class="tc">arraste para reorganizar dentro da semana</span>
+    </div>
+    <div class="week">
     ${DOW.map((label, i) => {
-      const items = visible.filter(t => t.planDay === i);
-      const isToday = i === TODAY_INDEX;
+      const dayDate = semanaDayDate(i);
+      const y = dayDate.getFullYear(), m = dayDate.getMonth(), dNum = dayDate.getDate();
+      const items = visible.filter(t => t.planMonthDay === dNum && taskPlanMonth(t) === m && taskPlanYear(t) === y);
+      const isToday = y === REF_YEAR && m === REF_MONTH && dNum === REF_TODAY_DAY;
       const cardFn = t => simplifiedMode
         ? simplePillHTML(t, { dragCtx: id => `dropOnCardWeek(event, ${id}, ${i})`, selectable: true })
         : taskCardHTML(t, { showMismatch: true, dragCtx: id => `dropOnCardWeek(event, ${id}, ${i})`, selectable: true });
@@ -3211,13 +3265,14 @@ function renderSemana(){
         <div class="day ${isToday ? 'today' : ''}" ondragover="event.preventDefault()" ondrop="dropOnColumnWeek(event, ${i})">
           <div class="day-head">
             <span class="dow">${label}</span>
-            <span class="date">${items[0] ? items[0].due : ''}</span>
+            <span class="date">${String(dNum).padStart(2,'0')}.${String(m + 1).padStart(2,'0')}</span>
           </div>
           ${items.length ? cards : '<div class="empty-hint">—</div>'}
         </div>
       `;
     }).join('')}
-  </div>`;
+    </div>
+  `;
 }
 
 function dayOfMonthFromDue(due){
@@ -3372,12 +3427,21 @@ function dropOnColumnKanban(e, status){
   draggedId = null; renderAll();
 }
 
+// Move a tarefa pro dia exato daquela coluna NA SEMANA que está sendo exibida (não só o índice do dia da semana)
+function setTaskToSemanaDay(t, dayIdx){
+  const d = semanaDayDate(dayIdx);
+  t.planDay = dayIdx;
+  t.planMonthDay = d.getDate();
+  t.planMonth = d.getMonth();
+  t.planYear = d.getFullYear();
+}
+
 function dropOnCardWeek(e, targetId, dayIdx){
   e.preventDefault(); e.stopPropagation();
   if (draggedId == null) return;
   const ids = kanbanDragIds();
   if (ids.length === 1 && ids[0] === targetId) return;
-  ids.forEach(id => { const t = TASKS.find(x => x.id === id); if (t) t.planDay = dayIdx; });
+  ids.forEach(id => { const t = TASKS.find(x => x.id === id); if (t) setTaskToSemanaDay(t, dayIdx); });
   ids.filter(id => id !== targetId).forEach(id => moveInArray(id, targetId));
   kanbanSelected.clear();
   draggedId = null; renderAll();
@@ -3386,7 +3450,7 @@ function dropOnColumnWeek(e, dayIdx){
   e.preventDefault();
   if (draggedId == null) return;
   const ids = kanbanDragIds();
-  ids.forEach(id => { const t = TASKS.find(x => x.id === id); if (t) t.planDay = dayIdx; });
+  ids.forEach(id => { const t = TASKS.find(x => x.id === id); if (t) setTaskToSemanaDay(t, dayIdx); });
   ids.forEach(id => moveInArray(id, null));
   kanbanSelected.clear();
   draggedId = null; renderAll();
@@ -3762,7 +3826,7 @@ function simplePillHTML(t, opts = {}){
         </div>
         <div class="simple-pill-date" style="background:${dateColor};">${t.due || '—'}</div>
       </div>
-      ${expanded ? `<div class="simple-pill-expanded" onclick="event.stopPropagation()">${taskCardHTML(t, { showMismatch: true })}</div>` : ''}
+      ${expanded ? `<div class="simple-pill-expanded" onclick="event.stopPropagation()">${taskCardHTML(t, { showMismatch: true, showMoveDay: true })}</div>` : ''}
     </div>
   `;
 }
