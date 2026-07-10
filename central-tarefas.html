@@ -524,12 +524,105 @@
   /* espaço embaixo da busca pra ela não colar na faixa de subcategorias */
   #search-row{ margin-bottom: 34px; }
 
+  /* ---------- Frase do dia (colapsável, no topo do app) ---------- */
+  .frase-dia-row{
+    display:flex;
+    align-items:center;
+    gap: 10px;
+    margin: 0 0 20px;
+    padding: 10px 16px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  }
+  .frase-dia-row.collapsed{ display:inline-flex; width:auto; }
+  .frase-toggle{
+    background:none; border:none; color: var(--muted-2);
+    font-size: 11px; cursor:pointer; padding:0; flex-shrink:0; line-height:1;
+  }
+  .frase-toggle:hover{ color: var(--text); }
+  .frase-icon{ color: var(--freela); font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:18px; line-height:1; flex-shrink:0; }
+  .frase-text{
+    flex:1; min-width:0;
+    font-family:'Inter', sans-serif; font-style: italic; font-size: 12.5px; color: var(--text);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .frase-author{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; color: var(--muted-2); flex-shrink:0; }
+  .frase-collapsed-label{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; color: var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+
+  /* ---------- Tela de boas-vindas ---------- */
+  #welcome-overlay{ position: fixed; inset: 0; z-index: 900; }
+  .welcome-backdrop{
+    position: fixed; inset: 0;
+    display:flex; align-items:center; justify-content:center;
+    background: linear-gradient(135deg, #7C3AED 0%, #C026D3 55%, #EC4899 100%);
+    padding: 24px;
+  }
+  .welcome-panel{
+    width: 440px; max-width: 100%;
+    background: rgba(20,24,28,0.55);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 24px;
+    padding: 40px 34px 34px;
+    text-align: center;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.4);
+  }
+  .welcome-logo{
+    width: 60px; height: 60px;
+    margin: 0 auto 18px;
+    display:flex; align-items:center; justify-content:center;
+    background: rgba(255,255,255,0.14);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 50%;
+  }
+  .welcome-title{
+    font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:22px;
+    color:#fff; margin: 0 0 6px; letter-spacing:-0.01em;
+  }
+  .welcome-sub{
+    font-family:'IBM Plex Mono', monospace; font-size:11px;
+    color: rgba(255,255,255,0.68); letter-spacing:.05em; text-transform:uppercase;
+    margin-bottom: 26px;
+  }
+  .welcome-quote{
+    font-family:'Inter', sans-serif; font-style: italic; font-size: 13.5px; line-height:1.6;
+    color: rgba(255,255,255,0.94);
+    background: rgba(255,255,255,0.09);
+    border-left: 3px solid rgba(255,255,255,0.55);
+    border-radius: 10px;
+    padding: 14px 16px;
+    text-align: left;
+    margin-bottom: 28px;
+  }
+  .welcome-quote-author{
+    display:block; margin-top:8px;
+    font-family:'IBM Plex Mono', monospace; font-style:normal; font-size:10.5px;
+    color: rgba(255,255,255,0.62); text-align:right;
+  }
+  .welcome-actions{ display:flex; gap: 12px; }
+  .welcome-btn{
+    flex:1; height: 46px;
+    border-radius: 23px;
+    font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:14px;
+    cursor:pointer; border:none;
+    display:flex; align-items:center; justify-content:center;
+    transition: filter .12s ease, background .12s ease;
+  }
+  .welcome-btn.primary{ background: #8B5CF6; color:#fff; box-shadow: 0 8px 22px rgba(139,92,246,0.45); }
+  .welcome-btn.primary:hover{ filter: brightness(1.1); }
+  .welcome-btn.ghost{ background: rgba(255,255,255,0.12); color:#fff; border:1px solid rgba(255,255,255,0.28); }
+  .welcome-btn.ghost:hover{ background: rgba(255,255,255,0.2); }
+
   /* ---------- Toast (mensagem rápida, ex: "Ação desfeita") ---------- */
   #app-toast{
     position: fixed;
     left: 50%;
     bottom: 28px;
     transform: translateX(-50%) translateY(12px);
+    max-width: calc(100vw - 48px);
+    text-align: center;
     background: var(--surface-2);
     border: 1px solid var(--line);
     color: var(--text);
@@ -1484,6 +1577,8 @@
 </head>
 <body>
 
+<div id="welcome-overlay" style="display:none;"></div>
+
 <div class="wrap">
 
   <header>
@@ -1524,6 +1619,8 @@
       <button data-view="calendarios">Calendários</button>
     </div>
   </header>
+
+  <div class="frase-dia-row" id="frase-dia-row"></div>
 
   <div id="drop-overlay" style="display:none;">
     <div class="drop-overlay-panel">Solte o arquivo .json aqui para importar</div>
@@ -3582,6 +3679,134 @@ function escapeHtml(str){
     .replace(/"/g, '&quot;');
 }
 
+// -------- Frase do dia (banco de frases em português — não precisa ficar chamando API nem depender de internet) --------
+const QUOTE_BANK = [
+  { text: 'A tarefa não é ver aquilo que ninguém viu, mas pensar o que ninguém ainda pensou sobre aquilo que todo mundo vê.', author: 'Arthur Schopenhauer' },
+  { text: 'Que os vossos esforços desafiem as impossibilidades, lembrai-vos de que as grandes coisas do homem foram conquistadas do que parecia impossível.', author: 'Charles Chaplin' },
+  { text: 'Feliz aquele que transfere o que sabe e aprende o que ensina.', author: 'Cora Coralina' },
+  { text: 'É preciso força pra sonhar e perceber que a estrada vai além do que se vê.', author: 'Los Hermanos' },
+  { text: 'Um dia de cada vez, um passo de cada vez, e no fim do caminho a gente vê que valeu a pena.', author: 'Popular' },
+  { text: 'O que a gente quer mesmo é continuar, meio a esmo, a vida a rodar.', author: 'Vinicius de Moraes' },
+  { text: 'Só se pode alcançar um grande êxito quando nos mantemos fiéis a nós mesmos.', author: 'Friedrich Nietzsche' },
+  { text: 'Não sei se a vida é curta ou longa demais pra nós, mas sei que nada do que vivemos tem sentido, se não tocarmos o coração das pessoas.', author: 'Cora Coralina' },
+  { text: 'Fazer o possível é a melhor forma de merecer o impossível.', author: 'Provérbio popular' },
+  { text: 'Bom mesmo é ir à luta com determinação, abraçar a vida com paixão, perder com classe e vencer com ousadia.', author: 'Charles Chaplin' },
+  { text: 'Cada um que passa em nossa vida, passa sozinho, mas não vai só, nem nos deixa sós. Leva um pouco de nós mesmos, deixa um pouco de si mesmo.', author: 'Antoine de Saint-Exupéry' },
+  { text: 'A persistência é o caminho do êxito.', author: 'Charles Chaplin' },
+  { text: 'Que os vossos esforços de hoje sejam a semente da colheita de amanhã.', author: 'Ditado popular' },
+  { text: 'Não é o mais forte que sobrevive, nem o mais inteligente, mas o que melhor se adapta às mudanças.', author: 'Charles Darwin' },
+  { text: 'Devagar se vai ao longe.', author: 'Provérbio popular' },
+  { text: 'Águas passadas não movem moinhos, mas ensinam o rio a correr.', author: 'Ditado popular' },
+  { text: 'Cada dia é uma nova oportunidade de fazer as coisas direito.', author: 'Popular' },
+  { text: 'O que importa não é a vitória, mas o combate; não é vencer, mas lutar bem.', author: 'Pierre de Coubertin' },
+  { text: 'Aprender é a única coisa de que a mente nunca se cansa, nunca tem medo e nunca se arrepende.', author: 'Leonardo da Vinci' },
+  { text: 'A vida é a arte do encontro, embora haja tanto desencontro pela vida.', author: 'Vinicius de Moraes' },
+  { text: 'Só sei que nada sei.', author: 'Sócrates' },
+  { text: 'Não existe vento favorável para o barco que não sabe a que porto se dirige.', author: 'Sêneca' },
+  { text: 'Não deixes que a tristeza do que já passou, ou o medo relativo ao futuro, estraguem a alegria do presente.', author: 'Papa Francisco' },
+  { text: 'É melhor conquistar a si mesmo do que vencer mil batalhas.', author: 'Buda' },
+  { text: 'A vida é como andar de bicicleta. Para manter o equilíbrio, é preciso se manter em movimento.', author: 'Albert Einstein' },
+  { text: 'Tudo o que um sonho precisa para ser realizado é alguém que acredite que ele possa ser realizado.', author: 'Roberto Shinyashiki' },
+  { text: 'Não importa o quão devagar você vá, desde que você não pare.', author: 'Confúcio' },
+  { text: 'Ninguém é tão grande que não possa aprender, nem tão pequeno que não possa ensinar.', author: 'Esopo' },
+  { text: 'Feliz é aquele que transfere o que sabe e aprende o que ensina.', author: 'Cora Coralina' },
+  { text: 'O sucesso nasce do querer, da determinação e persistência em se chegar a um objetivo.', author: 'José de Alencar' },
+  { text: 'Fazer as pazes com o presente é o único jeito de curar o passado e preparar o futuro.', author: 'Eckhart Tolle' },
+  { text: 'Divirta-se com o que faz, ame o que faz, ninguém é feliz fazendo o que não gosta.', author: 'Ayrton Senna' },
+  { text: 'Antes de tudo, é preciso paciência.', author: 'Rubem Braga' },
+  { text: 'A menos que modifiquemos a nossa maneira de pensar, não seremos capazes de resolver os problemas causados pela forma como nos acostumamos a ver o mundo.', author: 'Albert Einstein' },
+  { text: 'A dúvida é o princípio da sabedoria.', author: 'Aristóteles' },
+  { text: 'Quem caminha sozinho pode até chegar mais rápido, mas aquele que vai acompanhado, com certeza vai mais longe.', author: 'Clarice Lispector' },
+  { text: 'Nada é tão nosso quanto os nossos sonhos.', author: 'Friedrich Nietzsche' },
+  { text: 'Que darei aos deuses em troca da alegria com que me esmaltam a vida?', author: 'Fernando Pessoa' },
+  { text: 'O tempo é o único capital de que dispõem os seres humanos, e o único de que ninguém pode privá-los.', author: 'Machado de Assis' },
+  { text: 'A vida é a soma de todas as suas escolhas.', author: 'Albert Camus' },
+  { text: 'Que a força do medo que tenho não me impeça de ver o que anseio.', author: 'Marisa Monte' },
+  { text: 'Plantar seu jardim ao invés de esperar que alguém lhe traga flores.', author: 'Cora Coralina' },
+  { text: 'Levante-se, sacuda a poeira e dê a volta por cima.', author: 'Ditado popular' },
+  { text: 'A gente não faz amigos, reconhece-os.', author: 'Vinicius de Moraes' },
+  { text: 'Corra riscos. Se você vencer, será feliz; se perder, será sábio.', author: 'Ditado popular' },
+];
+
+function dayOfYear(d){
+  const start = new Date(d.getFullYear(), 0, 0);
+  return Math.floor((d - start) / 86400000);
+}
+
+// Muda uma vez por dia (baseado na data real do dispositivo), não sorteia de novo a cada recarregamento.
+function pickQuoteOfDay(){
+  return QUOTE_BANK[dayOfYear(new Date()) % QUOTE_BANK.length];
+}
+
+let fraseDiaCollapsed = localStorage.getItem('ct_fraseCollapsed') === '1';
+
+function toggleFraseDiaCollapsed(){
+  fraseDiaCollapsed = !fraseDiaCollapsed;
+  localStorage.setItem('ct_fraseCollapsed', fraseDiaCollapsed ? '1' : '0');
+  renderFraseDia();
+}
+
+function renderFraseDia(){
+  const el = document.getElementById('frase-dia-row');
+  if (!el) return;
+  const q = pickQuoteOfDay();
+  el.classList.toggle('collapsed', fraseDiaCollapsed);
+  if (fraseDiaCollapsed){
+    el.innerHTML = `
+      <button class="frase-toggle" onclick="toggleFraseDiaCollapsed()" title="Expandir frase do dia">▸</button>
+      <span class="frase-icon">"</span>
+      <span class="frase-collapsed-label">Frase do dia</span>
+    `;
+  } else {
+    el.innerHTML = `
+      <button class="frase-toggle" onclick="toggleFraseDiaCollapsed()" title="Minimizar">▾</button>
+      <span class="frase-icon">"</span>
+      <span class="frase-text">${escapeHtml(q.text)}</span>
+      <span class="frase-author">— ${escapeHtml(q.author)}</span>
+    `;
+  }
+}
+
+// -------- Tela de boas-vindas (aparece toda vez que o app abre, já que o login do Drive não persiste) --------
+function showWelcomeScreen(){
+  const el = document.getElementById('welcome-overlay');
+  if (!el) return;
+  const q = pickQuoteOfDay();
+  el.style.display = 'flex';
+  el.innerHTML = `
+    <div class="welcome-backdrop">
+      <div class="welcome-panel">
+        <div class="welcome-logo">
+          <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+        </div>
+        <h1 class="welcome-title">Bem-vindo(a) à Central de Tarefas</h1>
+        <div class="welcome-sub">Suas tarefas, num só lugar</div>
+        <div class="welcome-quote">“${escapeHtml(q.text)}”<span class="welcome-quote-author">— ${escapeHtml(q.author)}</span></div>
+        <div class="welcome-actions">
+          <button class="welcome-btn primary" onclick="welcomeConnect()">Conectar</button>
+          <button class="welcome-btn ghost" onclick="welcomeSkip()">Pular</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function closeWelcomeScreen(){
+  const el = document.getElementById('welcome-overlay');
+  if (!el) return;
+  el.style.display = 'none';
+  el.innerHTML = '';
+}
+
+function welcomeSkip(){
+  closeWelcomeScreen();
+}
+
+function welcomeConnect(){
+  closeWelcomeScreen();
+  driveAction();
+}
+
 function nowLabel(){
   const d = new Date();
   const dd = String(d.getDate()).padStart(2, '0');
@@ -3918,7 +4143,7 @@ function undoLastAction(){
 
 // -------- Toast rápido (mensagem que some sozinha) --------
 let toastTimer = null;
-function showToast(msg){
+function showToast(msg, duration = 2200){
   let el = document.getElementById('app-toast');
   if (!el){
     el = document.createElement('div');
@@ -3928,7 +4153,7 @@ function showToast(msg){
   el.textContent = msg;
   el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
+  toastTimer = setTimeout(() => el.classList.remove('show'), duration);
 }
 
 window.addEventListener('keydown', (e) => {
@@ -4255,7 +4480,7 @@ async function driveSalvar(silent){
         method: 'PATCH', headers: { Authorization: 'Bearer ' + gdToken, 'Content-Type': 'application/json' }, body: json
       });
     }
-    if (!silent) appAlert('Salvo no Google Drive!');
+    if (!silent) showToast('Salvo no Google Drive ✓');
   } catch (e){
     appAlert('Erro ao salvar no Drive: ' + e.message);
   }
@@ -4271,7 +4496,7 @@ async function driveCarregar(){
     const resp = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, { headers: { Authorization: 'Bearer ' + gdToken } });
     const text = await resp.text();
     importStateFromJSON(text);
-    appAlert('Dados carregados do Google Drive!');
+    showToast('Dados carregados do Google Drive ✓');
   } catch (e){
     appAlert('Erro ao carregar do Drive: ' + e.message);
   }
@@ -4851,7 +5076,7 @@ async function syncNotionConnection(conn){
   });
 
   renderAll();
-  appAlert(`Importado! ${imported} tarefa(s) de "${conn.label}".`);
+  showToast(`Importado! ${imported} tarefa(s) de "${conn.label}" ✓`, 3000);
 }
 
 function airtableValueMatches(raw, expected){
@@ -4963,7 +5188,7 @@ async function syncAirtableConnection(conn){
   });
 
   renderAll();
-  appAlert(`Importado! ${imported} tarefa(s) de "${conn.label}"${skipped ? ` (${skipped} pulada(s) por status "Não importar")` : ''}.`);
+  showToast(`Importado! ${imported} tarefa(s) de "${conn.label}"${skipped ? ` (${skipped} pulada(s))` : ''} ✓`, 3000);
 }
 
 async function syncAllApiConnections(){
@@ -5061,11 +5286,14 @@ window.addEventListener('drop', (e) => {
 renderCategoryFilters();
 renderSubcatRow();
 renderApiConnRow();
+renderFraseDia();
 renderAll();
 
 document.getElementById('simplified-btn').classList.toggle('active', simplifiedMode);
 document.getElementById('expand-btn').classList.toggle('active', expandedLayout);
 document.body.classList.toggle('expanded-layout', expandedLayout);
+
+showWelcomeScreen();
 </script>
 
 </body>
