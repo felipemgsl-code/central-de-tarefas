@@ -8,6 +8,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="theme-color" content="#7C3AED">
+<meta name="color-scheme" content="dark">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -17,6 +18,10 @@
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root{
+    /* diz pro navegador que esse site é de propósito escuro — sem isso, alguns navegadores
+       Android (Samsung Internet entre eles) aplicam um "dark mode forçado" por cima do nosso
+       próprio tema escuro, remapeando as cores e deixando tudo esquisito/lavado. */
+    color-scheme: dark;
     --bg: #14181C;
     --surface: #1B2127;
     --surface-2: #20272E;
@@ -43,7 +48,10 @@
 
   *{ box-sizing: border-box; }
 
-  html, body{ max-width: 100%; overflow-x: hidden; }
+  /* overflow-x: clip (não "hidden") de propósito — "hidden" força o eixo Y a virar "auto"
+     também, o que cria um 2º contêiner de rolagem escondido e quebra o position:sticky
+     da barra de busca/categorias mais abaixo. */
+  html, body{ max-width: 100%; overflow-x: clip; }
 
   body{
     margin:0;
@@ -174,6 +182,18 @@
     flex-wrap: wrap;
     margin-bottom: 28px;
   }
+
+  /* Busca + categorias principais ficam grudadas no topo ao rolar a página */
+  #sticky-filters-bar{
+    position: sticky;
+    top: 0;
+    z-index: 60;
+    background: var(--bg);
+    padding-top: 6px;
+    padding-bottom: 15px;
+  }
+  #sticky-filters-bar .filters{ margin-bottom: 18px; }
+  #sticky-filters-bar #category-filters-row{ margin-bottom: 13px; }
 
   .chip{
     display:flex;
@@ -563,32 +583,27 @@
   /* espaço embaixo da busca pra ela não colar na faixa de subcategorias */
   #search-row{ margin-bottom: 34px; }
 
-  /* ---------- Frase do dia (colapsável, no topo do app) ---------- */
+  /* ---------- Frase do dia (texto solto, sem caixa em volta) ---------- */
   .frase-dia-row{
     display:flex;
-    align-items:center;
-    gap: 10px;
-    margin: 0 0 20px;
-    padding: 10px 16px;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 24px;
   }
-  .frase-dia-row.collapsed{ display:inline-flex; width:auto; }
-  .frase-toggle{
-    background:none; border:none; color: var(--muted-2);
-    font-size: 11px; cursor:pointer; padding:0; flex-shrink:0; line-height:1;
-  }
-  .frase-toggle:hover{ color: var(--text); }
-  .frase-icon{ color: var(--freela); font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:18px; line-height:1; flex-shrink:0; }
   .frase-text{
-    flex:1; min-width:0;
-    font-family:'Inter', sans-serif; font-style: italic; font-size: 12.5px; color: var(--text);
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    font-family:'Inter', sans-serif;
+    font-style: italic;
+    font-weight: 500;
+    font-size: 15px;
+    color: var(--freela);
   }
-  .frase-author{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; color: var(--muted-2); flex-shrink:0; }
-  .frase-collapsed-label{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; color: var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .frase-author{
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--freela);
+    opacity: 0.7;
+  }
 
   /* ---------- Tela de boas-vindas ---------- */
   #welcome-overlay{ position: fixed; inset: 0; z-index: 900; }
@@ -653,6 +668,66 @@
   .welcome-btn.primary:hover{ filter: brightness(1.1); }
   .welcome-btn.ghost{ background: rgba(255,255,255,0.12); color:#fff; border:1px solid rgba(255,255,255,0.28); }
   .welcome-btn.ghost:hover{ background: rgba(255,255,255,0.2); }
+
+  /* ---------- Botão flutuante "+" (nova tarefa / categorias / subcategorias / APIs) ---------- */
+  #fab-container{
+    position: fixed;
+    right: 22px;
+    bottom: 26px;
+    z-index: 400;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 12px;
+  }
+  .fab-btn{
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #fff;
+    color: #14181C;
+    border: none;
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 8px 26px rgba(0,0,0,0.4);
+    transition: transform .15s ease;
+    flex-shrink: 0;
+  }
+  .fab-btn:hover{ transform: scale(1.06); }
+  .fab-btn.open{ transform: rotate(45deg); }
+  .fab-btn.open:hover{ transform: rotate(45deg) scale(1.06); }
+  .fab-menu{
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 10px;
+    min-width: 200px;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.45);
+  }
+  .fab-menu button{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 11px 12px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    text-align: left;
+  }
+  .fab-menu button:hover{ border-color: var(--muted-2); background: var(--surface); }
 
   /* ---------- Toast (mensagem rápida, ex: "Ação desfeita") ---------- */
   #app-toast{
@@ -1433,6 +1508,13 @@
   @media (max-width: 900px){
     .kanban{ grid-template-columns: 1fr !important; }
     .week{ grid-template-columns: repeat(4, 1fr); }
+
+    /* No celular as colunas empilham (1 por linha), então a faixa vertical de coluna
+       colapsada (pensada pra ficar fininha ao lado de outras colunas) virava uma caixa
+       enorme ocupando a largura toda. Aqui ela vira uma barra horizontal compacta. */
+    .column.collapsed{ padding: 10px 14px; }
+    .col-collapsed-inner{ flex-direction: row; justify-content: flex-start; gap: 10px; }
+    .col-collapsed-title{ writing-mode: horizontal-tb; transform: none; }
   }
   @media (max-width: 600px){
     .week{ grid-template-columns: repeat(2, 1fr); }
@@ -1456,6 +1538,39 @@
     .modal-panel{ max-width: calc(100vw - 32px); }
 
     .day-picker-pop{ width: 170px; }
+
+    /* frase do dia, busca e categorias principais centralizadas ao abrir no celular */
+    #search-row{ justify-content: center; }
+    #search-row .search-box{ flex: none; width: 100%; max-width: 320px; }
+    #category-filters-row{ justify-content: center; }
+
+    .frase-dia-row{
+      flex-wrap: wrap;
+      justify-content: center;
+      row-gap: 4px;
+    }
+    .frase-dia-row .frase-text{
+      text-align: center;
+      flex-basis: 100%;
+    }
+    .frase-dia-row .frase-author{
+      flex-basis: 100%;
+      text-align: center;
+    }
+
+    /* subcategorias: em vez de quebrar linha e ocupar altura, rola de lado com o dedo,
+       com um degradê na ponta direita avisando que tem mais */
+    #subcat-row{
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
+      mask-image: linear-gradient(to right, black 85%, transparent 100%);
+      padding-right: 28px;
+    }
+    #subcat-row::-webkit-scrollbar{ display: none; }
+    #subcat-row > *{ flex-shrink: 0; }
   }
 
   :focus-visible{ outline: 2px solid var(--muted); outline-offset: 2px; }
@@ -1675,13 +1790,15 @@
     <div class="drop-overlay-panel">Solte o arquivo .json aqui para importar</div>
   </div>
 
-  <div class="filters" id="category-filters-row"></div>
-
-  <div class="filters" id="search-row">
-    <div class="search-box">
-      <input type="text" id="task-search-input" placeholder="Buscar por título..." oninput="setSearchQuery(this.value)">
-      <button id="search-clear-btn" onclick="clearSearchQuery()" style="display:none;" title="Limpar busca">✕</button>
+  <div id="sticky-filters-bar">
+    <div class="filters" id="search-row">
+      <div class="search-box">
+        <input type="text" id="task-search-input" placeholder="Buscar por título..." oninput="setSearchQuery(this.value)">
+        <button id="search-clear-btn" onclick="clearSearchQuery()" style="display:none;" title="Limpar busca">✕</button>
+      </div>
     </div>
+
+    <div class="filters" id="category-filters-row"></div>
   </div>
 
   <div class="subcat-row" id="subcat-row"></div>
@@ -1712,6 +1829,11 @@
   <div id="open-link-overlay" style="display:none;"></div>
   <div id="api-edit-overlay" style="display:none;"></div>
   <div id="app-dialog-overlay"></div>
+
+  <div id="fab-container" style="display:none;">
+    <div id="fab-menu" class="fab-menu" style="display:none;"></div>
+    <button type="button" id="fab-btn" class="fab-btn" onclick="event.stopPropagation(); toggleFabMenu()" title="Adicionar">+</button>
+  </div>
 
 </div>
 
@@ -1922,9 +2044,6 @@ function renderCategoryFilters(){
         <span class="dot"></span>${c.name}
       </div>
     `).join('')}
-    <div class="chip archived-toggle" id="archived-chip" style="--dotcolor: var(--local);" onclick="toggleShowArchivedLocal()"><span class="dot"></span>Arquivadas</div>
-    <button class="add-subcat-trigger" onclick="openCategoryManager()">+ Categorias</button>
-    <button class="add-subcat-trigger" onclick="openNewTaskModal()">+ Nova tarefa</button>
   `;
 }
 
@@ -2050,8 +2169,7 @@ function renderSubcatRow(){
             ondrop="this.classList.remove('drag-over'); dropOnSubcatChip(event, '${s.id}')">
             <span class="dot"></span>${s.name}
           </div>
-        `).join('')}
-        <button class="add-subcat-trigger" onclick="openSubcatManager()">+ Adicionar</button>`
+        `).join('')}`
     }
   `;
 }
@@ -2533,7 +2651,6 @@ let showArchivedLocal = false;
 
 function toggleShowArchivedLocal(){
   showArchivedLocal = !showArchivedLocal;
-  document.getElementById('archived-chip').classList.toggle('on', showArchivedLocal);
   document.getElementById('archived-banner').style.display = showArchivedLocal ? 'block' : 'none';
   renderAll();
 }
@@ -3907,33 +4024,14 @@ function pickQuoteOfDay(){
   return QUOTE_BANK[dayOfYear(new Date()) % QUOTE_BANK.length];
 }
 
-let fraseDiaCollapsed = localStorage.getItem('ct_fraseCollapsed') === '1';
-
-function toggleFraseDiaCollapsed(){
-  fraseDiaCollapsed = !fraseDiaCollapsed;
-  localStorage.setItem('ct_fraseCollapsed', fraseDiaCollapsed ? '1' : '0');
-  renderFraseDia();
-}
-
 function renderFraseDia(){
   const el = document.getElementById('frase-dia-row');
   if (!el) return;
   const q = pickQuoteOfDay();
-  el.classList.toggle('collapsed', fraseDiaCollapsed);
-  if (fraseDiaCollapsed){
-    el.innerHTML = `
-      <button class="frase-toggle" onclick="toggleFraseDiaCollapsed()" title="Expandir frase do dia">▸</button>
-      <span class="frase-icon">"</span>
-      <span class="frase-collapsed-label">Frase do dia</span>
-    `;
-  } else {
-    el.innerHTML = `
-      <button class="frase-toggle" onclick="toggleFraseDiaCollapsed()" title="Minimizar">▾</button>
-      <span class="frase-icon">"</span>
-      <span class="frase-text">${escapeHtml(q.text)}</span>
-      <span class="frase-author">— ${escapeHtml(q.author)}</span>
-    `;
-  }
+  el.innerHTML = `
+    <span class="frase-text">“${escapeHtml(q.text)}”</span>
+    <span class="frase-author">— ${escapeHtml(q.author)}</span>
+  `;
 }
 
 // -------- Tela de boas-vindas (aparece toda vez que o app abre, já que o login do Drive não persiste) --------
@@ -4517,6 +4615,42 @@ function renderCalendarios(){
   `;
 }
 
+// -------- Botão flutuante "+" — reúne Nova tarefa / Categorias / Subcategorias / APIs conectadas --------
+let fabMenuOpen = false;
+
+function toggleFabMenu(){
+  fabMenuOpen = !fabMenuOpen;
+  renderFabMenu();
+}
+function closeFabMenu(){
+  if (fabMenuOpen){ fabMenuOpen = false; renderFabMenu(); }
+}
+function fabAction(fn){
+  closeFabMenu();
+  fn();
+}
+function renderFabMenu(){
+  const container = document.getElementById('fab-container');
+  if (!container) return;
+  const btn = document.getElementById('fab-btn');
+  const menu = document.getElementById('fab-menu');
+  const showTaskUI = TASK_VIEWS.includes(currentView);
+  container.style.display = showTaskUI ? 'flex' : 'none';
+  btn.classList.toggle('open', fabMenuOpen);
+  menu.style.display = fabMenuOpen ? 'flex' : 'none';
+  menu.innerHTML = fabMenuOpen ? `
+    <button type="button" onclick="fabAction(openNewTaskModal)">+ Nova tarefa</button>
+    <button type="button" onclick="fabAction(openCategoryManager)">◆ Categorias</button>
+    <button type="button" onclick="fabAction(openSubcatManager)">◆ Subcategorias</button>
+    <button type="button" onclick="fabAction(openApisConnect)">⇄ APIs conectadas</button>
+    <button type="button" onclick="fabAction(toggleShowArchivedLocal)">${showArchivedLocal ? '✓' : '🗄'} ${showArchivedLocal ? 'Voltar às ativas' : 'Ver arquivadas'}</button>
+  ` : '';
+}
+// Clicar fora do menu fecha ele
+window.addEventListener('click', (e) => {
+  if (fabMenuOpen && !e.target.closest('#fab-container')) closeFabMenu();
+});
+
 const VIEWS = ['kanban', 'semana', 'mes', 'lista', 'checklists', 'notas', 'calendarios'];
 const TASK_VIEWS = ['kanban', 'semana', 'mes', 'lista'];
 
@@ -4527,11 +4661,14 @@ function switchView(viewName){
     document.getElementById(`${v}-view`).style.display = (v === currentView) ? 'block' : 'none';
   });
   const showTaskUI = TASK_VIEWS.includes(currentView);
-  document.querySelector('.filters').style.display = showTaskUI ? 'flex' : 'none';
+  document.getElementById('sticky-filters-bar').style.display = showTaskUI ? '' : 'none';
+  document.getElementById('category-filters-row').style.display = showTaskUI ? 'flex' : 'none';
   document.getElementById('search-row').style.display = showTaskUI ? 'flex' : 'none';
   document.getElementById('subcat-row').style.display = showTaskUI ? 'flex' : 'none';
   document.getElementById('api-conn-row').style.display = (showTaskUI && API_CONNECTIONS.length) ? 'flex' : 'none';
   document.getElementById('drag-hint').style.display = showTaskUI ? 'block' : 'none';
+  fabMenuOpen = false;
+  renderFabMenu();
 }
 
 document.querySelectorAll('.view-toggle button').forEach(btn => {
@@ -4711,8 +4848,7 @@ function renderApiConnRow(){
           <div class="chip subcat-chip ${activeApiConnections.has(c.id) ? 'on' : ''}" style="--dotcolor:${categoryById(c.source).color}" onclick="toggleApiConnFilter('${c.id}')">
             <span class="dot"></span>${escapeHtml(c.label)}
           </div>
-        `).join('')}
-        <button class="add-subcat-trigger" onclick="openApisConnect()">Gerenciar</button>`
+        `).join('')}`
     }
   `;
 }
@@ -5456,6 +5592,7 @@ renderCategoryFilters();
 renderSubcatRow();
 renderApiConnRow();
 renderFraseDia();
+renderFabMenu();
 renderAll();
 
 document.getElementById('simplified-btn').classList.toggle('active', simplifiedMode);
@@ -5463,6 +5600,11 @@ document.getElementById('expand-btn').classList.toggle('active', expandedLayout)
 document.body.classList.toggle('expanded-layout', expandedLayout);
 
 showWelcomeScreen();
+
+// Necessário pra Android tratar isso como app instalado de verdade (sem barra de endereço)
+if ('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
 </script>
 
 </body>
