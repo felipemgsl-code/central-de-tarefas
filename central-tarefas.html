@@ -669,6 +669,75 @@
   .welcome-btn.ghost{ background: rgba(255,255,255,0.12); color:#fff; border:1px solid rgba(255,255,255,0.28); }
   .welcome-btn.ghost:hover{ background: rgba(255,255,255,0.2); }
 
+  .welcome-mode-label{
+    font-family:'IBM Plex Mono', monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em;
+    color: rgba(255,255,255,0.6); text-align:left; margin-bottom:8px;
+  }
+  .welcome-mode-toggle{ display:flex; gap:8px; margin-bottom:10px; }
+  .welcome-mode-opt{
+    flex:1; padding: 10px 8px; border-radius: 12px; cursor:pointer;
+    background: rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.75);
+    font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:13px;
+    display:flex; flex-direction:column; align-items:center; gap:2px;
+    transition: background .12s ease, border-color .12s ease;
+  }
+  .welcome-mode-opt .welcome-mode-icon{ font-size:16px; }
+  .welcome-mode-opt.active{ background: rgba(139,92,246,0.35); border-color:#8B5CF6; color:#fff; }
+  .welcome-mode-desc{
+    font-family:'Inter', sans-serif; font-size:11.5px; line-height:1.5; color: rgba(255,255,255,0.62);
+    text-align:left; margin-bottom:22px; min-height: 32px;
+  }
+
+  /* ---------- Modo Simples — lista única, sem categorias/colunas/abas ---------- */
+  #simple-mode-root{
+    min-height: 100vh;
+    flex-direction: column;
+    background: var(--bg);
+    padding: 28px 20px 100px;
+  }
+  .simple-mode-header{
+    display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
+    margin-bottom: 22px;
+  }
+  .simple-mode-header h1{
+    font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:26px; color: var(--text); margin:0 0 6px;
+  }
+  .simple-mode-quote{
+    font-family:'Inter', sans-serif; font-style:italic; font-size:13px; color: var(--freela); max-width: 420px;
+  }
+  .simple-mode-switch{
+    flex-shrink:0;
+    background: var(--surface); border:1px solid var(--line); color: var(--muted);
+    font-family:'IBM Plex Mono', monospace; font-size:11px; text-transform:uppercase; letter-spacing:.04em;
+    border-radius: 20px; padding: 8px 14px; cursor:pointer; white-space:nowrap;
+  }
+  .simple-mode-switch:hover{ color: var(--text); border-color: var(--muted-2); }
+  .simple-add-row{ display:flex; gap:10px; margin-bottom: 30px; max-width: 520px; }
+  .simple-add-row input{
+    flex:1; background: var(--surface); border:1px solid var(--line); color: var(--text);
+    border-radius: 12px; padding: 13px 16px; font-family:'Inter', sans-serif; font-size:14px;
+  }
+  .simple-add-row input::placeholder{ color: var(--muted-2); }
+  .simple-add-row button{
+    background: var(--freela); border:none; color:#fff; width:46px; border-radius:12px;
+    font-size:20px; cursor:pointer; flex-shrink:0;
+  }
+  .simple-add-row button:hover{ filter:brightness(1.1); }
+  .simple-list{ display:flex; flex-direction:column; max-width: 560px; }
+  .simple-row{
+    display:flex; align-items:center; gap:14px;
+    padding: 14px 4px; border-bottom: 1px solid var(--line);
+  }
+  .simple-row-dot{
+    width:20px; height:20px; border-radius:50%; flex-shrink:0; cursor:pointer;
+    border: 2px solid var(--muted-2); background:none;
+    transition: background .12s ease, border-color .12s ease;
+  }
+  .simple-row-dot:hover{ border-color: var(--freela); }
+  .simple-row-title{ flex:1; min-width:0; font-size:14.5px; color: var(--text); }
+  .simple-row-due{ flex-shrink:0; font-family:'IBM Plex Mono', monospace; font-size:11px; color: var(--muted-2); }
+  .simple-empty{ color: var(--muted); font-size:13.5px; padding: 30px 4px; }
+
   /* ---------- Botão flutuante "+" (nova tarefa / categorias / subcategorias / APIs) ---------- */
   #fab-container{
     position: fixed;
@@ -1743,7 +1812,7 @@
 
 <div id="welcome-overlay" style="display:none;"></div>
 
-<div class="wrap">
+<div class="wrap" id="full-app-root">
 
   <header>
     <div class="title-block">
@@ -1836,6 +1905,8 @@
   </div>
 
 </div>
+
+<div id="simple-mode-root" style="display:none;"></div>
 
 <script>
 // -------- Constantes de data — declaradas logo no topo de propósito: várias outras seções --------
@@ -3917,6 +3988,90 @@ function toggleSimplifiedExpand(id){
   renderAll();
 }
 
+// -------- Modo Simples — lista minimalista de tarefas, alternativa ao app completo --------
+// Mesma base de dados (TASKS) do modo completo, só que sem categorias/colunas/abas — é
+// só uma lista corrida, ordenada pelo dia planejado. Escolhido na tela de boas-vindas,
+// mas dá pra trocar a qualquer momento pelo botão "Modo completo" lá dentro.
+let appMode = localStorage.getItem('ct_appMode') || 'full';
+
+function applyAppMode(mode){
+  appMode = mode;
+  localStorage.setItem('ct_appMode', mode);
+  const fullRoot = document.getElementById('full-app-root');
+  const simpleRoot = document.getElementById('simple-mode-root');
+  if (mode === 'simple'){
+    fullRoot.style.display = 'none';
+    simpleRoot.style.display = 'flex';
+    renderSimpleMode();
+  } else {
+    fullRoot.style.display = '';
+    simpleRoot.style.display = 'none';
+  }
+}
+
+function simpleModeSortedTasks(){
+  return TASKS.filter(t => !t.archived).sort((a, b) => {
+    const ay = taskPlanYear(a), am = taskPlanMonth(a), ad = a.planMonthDay ?? 99;
+    const by = taskPlanYear(b), bm = taskPlanMonth(b), bd = b.planMonthDay ?? 99;
+    return (ay - by) || (am - bm) || (ad - bd);
+  });
+}
+
+function renderSimpleMode(){
+  const el = document.getElementById('simple-mode-root');
+  if (!el || appMode !== 'simple') return;
+  const q = pickQuoteOfDay();
+  const items = simpleModeSortedTasks();
+  el.innerHTML = `
+    <div class="simple-mode-header">
+      <div>
+        <h1>Central de Tarefas</h1>
+        <div class="simple-mode-quote">“${escapeHtml(q.text)}”</div>
+      </div>
+      <button type="button" class="simple-mode-switch" onclick="applyAppMode('full')">⇄ Modo completo</button>
+    </div>
+    <div class="simple-add-row">
+      <input type="text" id="simple-add-input" placeholder="Nova tarefa..." onkeydown="if(event.key==='Enter') addSimpleTask()">
+      <button type="button" onclick="addSimpleTask()">+</button>
+    </div>
+    <div class="simple-list">
+      ${items.length ? items.map(t => `
+        <div class="simple-row">
+          <button type="button" class="simple-row-dot" onclick="toggleArchiveTask(${t.id})" title="Marcar como feita"></button>
+          <span class="simple-row-title">${escapeHtml(t.title)}</span>
+          <span class="simple-row-due">${t.due || ''}</span>
+        </div>
+      `).join('') : '<div class="simple-empty">Nenhuma tarefa por aqui. Adiciona uma ali em cima.</div>'}
+    </div>
+  `;
+}
+
+function addSimpleTask(){
+  const input = document.getElementById('simple-add-input');
+  const title = input.value.trim();
+  if (!title) return;
+  const mm = String(REF_MONTH + 1).padStart(2, '0');
+  const dd = String(REF_TODAY_DAY).padStart(2, '0');
+  TASKS.push({
+    id: nextTaskId++,
+    title,
+    source: CATEGORIES[0] ? CATEGORIES[0].id : null,
+    subcat: null,
+    status: 'todo',
+    due: `${dd}.${mm}`,
+    url: null,
+    attachment: null,
+    notes: '',
+    planDay: (new Date(REF_YEAR, REF_MONTH, REF_TODAY_DAY).getDay() + 6) % 7,
+    planMonthDay: REF_TODAY_DAY,
+    planMonth: REF_MONTH,
+    planYear: REF_YEAR,
+    archived: false,
+  });
+  input.value = '';
+  renderAll();
+}
+
 function simplePillHoverStart(el){
   const max = el.scrollWidth - el.clientWidth;
   if (max > 4) el.scrollLeft = max;
@@ -4035,10 +4190,20 @@ function renderFraseDia(){
 }
 
 // -------- Tela de boas-vindas (aparece toda vez que o app abre, já que o login do Drive não persiste) --------
+// Escolha de modo dentro da tela de boas-vindas — só é aplicada de verdade quando
+// o usuário confirma (Conectar/Pular), pra não trocar o modo no meio de um clique de preview.
+let welcomeSelectedMode = appMode;
+
+function selectWelcomeMode(mode){
+  welcomeSelectedMode = mode;
+  showWelcomeScreen();
+}
+
 function showWelcomeScreen(){
   const el = document.getElementById('welcome-overlay');
   if (!el) return;
   const q = pickQuoteOfDay();
+  const isSimple = welcomeSelectedMode === 'simple';
   el.style.display = 'flex';
   el.innerHTML = `
     <div class="welcome-backdrop">
@@ -4049,6 +4214,20 @@ function showWelcomeScreen(){
         <h1 class="welcome-title">Bem-vindo(a) à Central de Tarefas</h1>
         <div class="welcome-sub">Suas tarefas, num só lugar</div>
         <div class="welcome-quote">“${escapeHtml(q.text)}”<span class="welcome-quote-author">— ${escapeHtml(q.author)}</span></div>
+
+        <div class="welcome-mode-label">Como você quer usar o app?</div>
+        <div class="welcome-mode-toggle">
+          <button type="button" class="welcome-mode-opt ${!isSimple ? 'active' : ''}" onclick="selectWelcomeMode('full')">
+            <span class="welcome-mode-icon">🗂</span><span>Completo</span>
+          </button>
+          <button type="button" class="welcome-mode-opt ${isSimple ? 'active' : ''}" onclick="selectWelcomeMode('simple')">
+            <span class="welcome-mode-icon">✓</span><span>Simples</span>
+          </button>
+        </div>
+        <div class="welcome-mode-desc">${isSimple
+          ? 'Uma lista direta de tarefas, sem categorias, colunas ou abas — só o essencial.'
+          : 'Kanban, Semana, Mês, Lista, categorias e sync com Airtable/Notion — tudo.'}</div>
+
         <div class="welcome-actions">
           <button class="welcome-btn primary" onclick="welcomeConnect()">Conectar</button>
           <button class="welcome-btn ghost" onclick="welcomeSkip()">Pular</button>
@@ -4066,10 +4245,12 @@ function closeWelcomeScreen(){
 }
 
 function welcomeSkip(){
+  applyAppMode(welcomeSelectedMode);
   closeWelcomeScreen();
 }
 
 function welcomeConnect(){
+  applyAppMode(welcomeSelectedMode);
   closeWelcomeScreen();
   driveAction();
 }
@@ -4343,6 +4524,7 @@ function renderAll(){
   renderChecklists();
   renderNotas();
   renderCalendarios();
+  if (appMode === 'simple') renderSimpleMode();
   commitHistory();
 }
 
@@ -5599,6 +5781,7 @@ document.getElementById('simplified-btn').classList.toggle('active', simplifiedM
 document.getElementById('expand-btn').classList.toggle('active', expandedLayout);
 document.body.classList.toggle('expanded-layout', expandedLayout);
 
+applyAppMode(appMode);
 showWelcomeScreen();
 
 // Necessário pra Android tratar isso como app instalado de verdade (sem barra de endereço)
