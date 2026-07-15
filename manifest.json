@@ -1,0 +1,38 @@
+{
+  "name": "Central de Tarefas",
+  "short_name": "Tarefas",
+  "description": "Central de tarefas pessoal — Kanban, Semana, Mês e Lista, com sync de Airtable, Notion e Google Drive.",
+  "start_url": "./central-tarefas.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#14181C",
+  "theme_color": "#7C3AED",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
